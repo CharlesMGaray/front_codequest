@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import './App.css'
+import './auth.css'
 import logoImg from './assets/codequest.png'
 
 const TOKEN_KEY = 'codequest_token'
@@ -54,6 +55,17 @@ function App() {
     go('login')
   }
 
+  useEffect(() => {
+    const onSession = (event) => setAuth({ token: event.detail.token, user: event.detail })
+    const onLogout = () => signOut()
+    window.addEventListener('codequest:session', onSession)
+    window.addEventListener('codequest:logout', onLogout)
+    return () => {
+      window.removeEventListener('codequest:session', onSession)
+      window.removeEventListener('codequest:logout', onLogout)
+    }
+  }, [])
+
   const page = useMemo(() => {
     if (!auth.token) {
       if (route === 'register') {
@@ -69,107 +81,139 @@ function App() {
   return <div className="app-shell">{page}</div>
 }
 
-function request(path, options = {}, token) {
-  return fetch(path, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options.headers || {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-  })
+let refreshInFlight = null
+
+// O token do Firebase expira em 1h: renova com o refreshToken salvo no login.
+function refreshSession() {
+  if (!refreshInFlight) {
+    refreshInFlight = (async () => {
+      const stored = JSON.parse(localStorage.getItem(USER_KEY) || 'null')
+      if (!stored?.refreshToken) return null
+
+      const response = await fetch('/api/auth/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken: stored.refreshToken }),
+      })
+      if (!response.ok) return null
+
+      const data = await response.json()
+      const user = { ...stored, token: data.token, refreshToken: data.refreshToken }
+      localStorage.setItem(TOKEN_KEY, data.token)
+      localStorage.setItem(USER_KEY, JSON.stringify(user))
+      window.dispatchEvent(new CustomEvent('codequest:session', { detail: user }))
+      return data.token
+    })().finally(() => {
+      refreshInFlight = null
+    })
+  }
+  return refreshInFlight
 }
 
-function LoginPage({ onGo, onSignedIn }) {
-  const [form, setForm] = useState({ email: '', senha: '' })
-  const [status, setStatus] = useState('')
-  const [loading, setLoading] = useState(false)
+async function request(path, options = {}, token) {
+  const send = (bearer) =>
+    fetch(path, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(options.headers || {}),
+        ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}),
+      },
+    })
 
-  const submit = async (event) => {
-    event.preventDefault()
-    setLoading(true)
-    setStatus('')
+  const response = await send(token)
+  if (response.status !== 401 || !token) return response
 
-    try {
-      const response = await request('/api/auth/login', {
-        method: 'POST',
-        body: JSON.stringify(form),
-      })
-
-      const payload = await response.json()
-      if (!response.ok) {
-        throw new Error(payload?.message || 'Nao foi possivel fazer login.')
-      }
-
-      onSignedIn(payload)
-    } catch (error) {
-      setStatus(error.message)
-    } finally {
-      setLoading(false)
-    }
+  const newToken = await refreshSession().catch(() => null)
+  if (!newToken) {
+    window.dispatchEvent(new Event('codequest:logout'))
+    return response
   }
+  return send(newToken)
+}
 
+const perfis = [
+  { value: 'ALUNO', label: 'Aluno', hint: 'Aprenda nas trilhas e ganhe XP' },
+  { value: 'PROFESSOR', label: 'Professor', hint: 'Acompanhe a evolução da turma' },
+  { value: 'ADMIN', label: 'Admin', hint: 'Gerencie a plataforma' },
+]
+
+function BrandMark() {
   return (
-    <main
-      className="auth-screen login-screen"
-      style={{ '--hero-image': `url(${logoImg})` }}
-    >
+    <div className="brand-mark">
+      <svg className="brand-mark-icon" viewBox="0 0 48 48" aria-hidden="true">
+        <path
+          d="M24 3.5 41.8 13.75v20.5L24 44.5 6.2 34.25v-20.5Z"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="3.5"
+          strokeLinejoin="round"
+        />
+        <path
+          d="m19 18-6 6 6 6M29 18l6 6-6 6M26.5 15.5l-5 17"
+          fill="none"
+          stroke="#eef3ff"
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+      <span className="brand-mark-text">
+        Code<span>Quest</span>
+      </span>
+    </div>
+  )
+}
+
+function AuthLayout({ children }) {
+  return (
+    <main className="auth">
+      <aside className="auth-art" aria-hidden="true">
+        <img src={logoImg} alt="" className="auth-art-image" />
+        <ul className="auth-art-points">
+          <li><span><strong>Jogue</strong> desafios e missões</span></li>
+          <li><span><strong>Suba de nível</strong> com XP a cada lição</span></li>
+          <li><span><strong>Dispute</strong> o ranking com a turma</span></li>
+        </ul>
+      </aside>
       <section className="auth-panel">
-        <div className="brand-row">
-          <img src={logoImg} alt="CodeQuest" className="brand-logo" />
-          <div>
-            <p className="eyebrow">CodeQuest</p>
-            <h1>Login</h1>
-          </div>
-        </div>
-
-        <p className="subcopy">
-          Acesse suas trilhas, veja seu ranking e continue sua evolucao.
-        </p>
-
-        <form className="form-stack" onSubmit={submit}>
-          <label>
-            Email
-            <input
-              type="email"
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
-              placeholder="voce@exemplo.com"
-              required
-            />
-          </label>
-
-          <label>
-            Senha
-            <input
-              type="password"
-              value={form.senha}
-              onChange={(e) => setForm({ ...form, senha: e.target.value })}
-              placeholder="Sua senha"
-              required
-            />
-          </label>
-
-          <button className="btn primary" type="submit" disabled={loading}>
-            {loading ? 'Entrando...' : 'Entrar'}
-          </button>
-        </form>
-
-        <div className="auth-footer">
-          <span>Nao tem conta?</span>
-          <button className="link-button" onClick={() => onGo('register')}>
-            Criar conta
-          </button>
-        </div>
-
-        {status ? <p className="message error">{status}</p> : null}
+        <div className="auth-card">{children}</div>
       </section>
     </main>
   )
 }
 
-function RegisterPage({ onGo, onSignedIn }) {
-  const [form, setForm] = useState(defaultRegisterForm)
+function PasswordField({ value, onChange, placeholder, autoComplete, hint }) {
+  const [visible, setVisible] = useState(false)
+
+  return (
+    <label className="field">
+      <span className="field-label">Senha</span>
+      <span className="field-control has-action">
+        <input
+          type={visible ? 'text' : 'password'}
+          value={value}
+          onChange={onChange}
+          placeholder={placeholder}
+          autoComplete={autoComplete}
+          minLength={hint ? 6 : undefined}
+          required
+        />
+        <button
+          type="button"
+          className="field-action"
+          onClick={() => setVisible((current) => !current)}
+          aria-label={visible ? 'Ocultar senha' : 'Mostrar senha'}
+        >
+          {visible ? 'Ocultar' : 'Mostrar'}
+        </button>
+      </span>
+      {hint ? <span className="field-hint">{hint}</span> : null}
+    </label>
+  )
+}
+
+function useAuthSubmit(path, form, onSignedIn, fallbackMessage) {
   const [status, setStatus] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -179,100 +223,174 @@ function RegisterPage({ onGo, onSignedIn }) {
     setStatus('')
 
     try {
-      const response = await request('/api/auth/registrar', {
+      const response = await request(path, {
         method: 'POST',
         body: JSON.stringify(form),
       })
 
-      const payload = await response.json()
+      const payload = await response.json().catch(() => null)
       if (!response.ok) {
-        throw new Error(payload?.message || 'Nao foi possivel criar a conta.')
+        throw new Error(payload?.message || fallbackMessage)
       }
 
       onSignedIn(payload)
     } catch (error) {
-      setStatus(error.message)
+      setStatus(error.message === 'Failed to fetch' ? 'Servidor indisponível. Tente novamente.' : error.message)
     } finally {
       setLoading(false)
     }
   }
 
+  return { submit, status, loading }
+}
+
+function LoginPage({ onGo, onSignedIn }) {
+  const [form, setForm] = useState({ email: '', senha: '' })
+  const { submit, status, loading } = useAuthSubmit(
+    '/api/auth/login',
+    form,
+    onSignedIn,
+    'Não foi possível fazer login.',
+  )
+
   return (
-    <main className="auth-screen">
-      <section className="auth-panel wide">
-        <div className="brand-row">
-          <img src={logoImg} alt="CodeQuest" className="brand-logo" />
-          <div>
-            <p className="eyebrow">CodeQuest</p>
-            <h1>Criar conta</h1>
-          </div>
-        </div>
+    <AuthLayout>
+      <BrandMark />
+      <header className="auth-head">
+        <h1>Bem-vindo de volta</h1>
+        <p>Acesse suas trilhas, veja seu ranking e continue sua evolução.</p>
+      </header>
 
-        <p className="subcopy">
-          Entre na plataforma e comece pela trilha inicial.
-        </p>
-
-        <form className="form-grid" onSubmit={submit}>
-          <label>
-            Nome
-            <input
-              type="text"
-              value={form.nome}
-              onChange={(e) => setForm({ ...form, nome: e.target.value })}
-              placeholder="Seu nome"
-              required
-            />
-          </label>
-
-          <label>
-            Email
+      <form className="auth-form" onSubmit={submit}>
+        <label className="field">
+          <span className="field-label">Email</span>
+          <span className="field-control">
             <input
               type="email"
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
               placeholder="voce@exemplo.com"
+              autoComplete="email"
               required
             />
-          </label>
+          </span>
+        </label>
 
-          <label>
-            Senha
+        <PasswordField
+          value={form.senha}
+          onChange={(e) => setForm({ ...form, senha: e.target.value })}
+          placeholder="Sua senha"
+          autoComplete="current-password"
+        />
+
+        {status ? <p className="auth-alert" role="alert">{status}</p> : null}
+
+        <button className="auth-submit" type="submit" disabled={loading}>
+          {loading ? 'Entrando...' : 'Entrar'}
+        </button>
+      </form>
+
+      <p className="auth-switch">
+        Não tem conta?
+        <button type="button" className="auth-link" onClick={() => onGo('register')}>
+          Criar conta
+        </button>
+      </p>
+    </AuthLayout>
+  )
+}
+
+function RegisterPage({ onGo, onSignedIn }) {
+  const [form, setForm] = useState(defaultRegisterForm)
+  const { submit, status, loading } = useAuthSubmit(
+    '/api/auth/registrar',
+    form,
+    onSignedIn,
+    'Não foi possível criar a conta.',
+  )
+
+  return (
+    <AuthLayout>
+      <BrandMark />
+      <header className="auth-head">
+        <h1>Comece sua jornada</h1>
+        <p>Crie sua conta e dê o primeiro passo na trilha inicial.</p>
+      </header>
+
+      <form className="auth-form" onSubmit={submit}>
+        <label className="field">
+          <span className="field-label">Nome</span>
+          <span className="field-control">
             <input
-              type="password"
-              value={form.senha}
-              onChange={(e) => setForm({ ...form, senha: e.target.value })}
-              placeholder="Crie uma senha"
+              type="text"
+              value={form.nome}
+              onChange={(e) => setForm({ ...form, nome: e.target.value })}
+              placeholder="Como quer ser chamado"
+              autoComplete="name"
+              maxLength={100}
               required
             />
-          </label>
+          </span>
+        </label>
 
-          <label>
-            Perfil
-            <select
-              value={form.perfil}
-              onChange={(e) => setForm({ ...form, perfil: e.target.value })}
-            >
-              <option value="ALUNO">Aluno</option>
-              <option value="PROFESSOR">Professor</option>
-              <option value="ADMIN">Admin</option>
-            </select>
-          </label>
+        <label className="field">
+          <span className="field-label">Email</span>
+          <span className="field-control">
+            <input
+              type="email"
+              value={form.email}
+              onChange={(e) => setForm({ ...form, email: e.target.value })}
+              placeholder="voce@exemplo.com"
+              autoComplete="email"
+              required
+            />
+          </span>
+        </label>
 
-          <button className="btn primary full" type="submit" disabled={loading}>
-            {loading ? 'Criando...' : 'Criar conta'}
-          </button>
-        </form>
+        <PasswordField
+          value={form.senha}
+          onChange={(e) => setForm({ ...form, senha: e.target.value })}
+          placeholder="Crie uma senha"
+          autoComplete="new-password"
+          hint="Mínimo de 6 caracteres."
+        />
 
-        <div className="auth-footer">
-          <span>Ja tem conta?</span>
-          <button className="link-button" onClick={() => onGo('login')}>
-            Entrar
-          </button>
-        </div>
+        <fieldset className="field">
+          <legend className="field-label">Perfil</legend>
+          <div className="role-options">
+            {perfis.map((perfil) => (
+              <label
+                key={perfil.value}
+                className={`role-option ${form.perfil === perfil.value ? 'selected' : ''}`}
+              >
+                <input
+                  type="radio"
+                  name="perfil"
+                  value={perfil.value}
+                  checked={form.perfil === perfil.value}
+                  onChange={(e) => setForm({ ...form, perfil: e.target.value })}
+                />
+                <span className="role-name">{perfil.label}</span>
+                <span className="role-hint">{perfil.hint}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
 
-        {status ? <p className="message error">{status}</p> : null}
-      </section>
-    </main>
+        {status ? <p className="auth-alert" role="alert">{status}</p> : null}
+
+        <button className="auth-submit" type="submit" disabled={loading}>
+          {loading ? 'Criando conta...' : 'Criar conta'}
+        </button>
+      </form>
+
+      <p className="auth-switch">
+        Já tem conta?
+        <button type="button" className="auth-link" onClick={() => onGo('login')}>
+          Entrar
+        </button>
+      </p>
+    </AuthLayout>
   )
 }
 

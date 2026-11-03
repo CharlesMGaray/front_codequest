@@ -7,7 +7,6 @@
   color: #0f172a;
 }
 
-.auth-screen,
 .dashboard {
   min-height: 100svh;
   display: grid;
@@ -16,36 +15,6 @@
   box-sizing: border-box;
 }
 
-.auth-screen {
-  grid-template-columns: minmax(320px, 560px) minmax(0, 1fr);
-  align-items: center;
-}
-
-.login-screen {
-  position: relative;
-  isolation: isolate;
-  grid-template-columns: 1fr;
-  justify-items: center;
-  min-height: 100svh;
-  padding: clamp(20px, 4vw, 56px);
-  overflow: hidden;
-  background-color: #080b35;
-  background-image:
-    linear-gradient(90deg, rgba(4, 7, 39, 0.08) 18%, rgba(4, 7, 39, 0.34) 64%, rgba(4, 7, 39, 0.78) 100%),
-    var(--hero-image);
-  background-position: center;
-  background-size: 100% 100%;
-}
-
-.login-screen::after {
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  content: '';
-  background: linear-gradient(180deg, rgba(7, 9, 54, 0.04), rgba(7, 9, 54, 0.3));
-}
-
-.auth-panel,
 .panel,
 .profile-card,
 .stat-card,
@@ -54,51 +23,6 @@
   background: rgba(255, 255, 255, 0.9);
   border: 1px solid rgba(148, 163, 184, 0.2);
   box-shadow: 0 20px 60px rgba(15, 23, 42, 0.08);
-}
-
-.auth-panel {
-  border-radius: 24px;
-  padding: 28px;
-  backdrop-filter: blur(10px);
-}
-
-.login-screen .auth-panel {
-  width: min(100%, 460px);
-  justify-self: center;
-  transform: translate(480px, 95px);
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  padding: clamp(28px, 4vw, 44px);
-  border: 1px solid rgba(151, 224, 255, 0.35);
-  border-radius: 24px;
-  background: rgba(5, 12, 58, 0.82);
-  box-shadow: 0 24px 80px rgba(1, 4, 31, 0.45);
-  color: #f8fbff;
-}
-
-.login-screen .subcopy,
-.login-screen .auth-footer {
-  color: #c5d5f5;
-}
-
-.login-screen label {
-  color: #e2eaff;
-}
-
-.login-screen input {
-  border-color: rgba(151, 224, 255, 0.32);
-  background: rgba(4, 10, 45, 0.58);
-  color: #fff;
-}
-
-.login-screen input::placeholder {
-  color: #94a9d2;
-}
-
-.auth-panel.wide {
-  width: min(100%, 760px);
-  justify-self: start;
 }
 
 .brand-row {
@@ -134,35 +58,12 @@ p {
   margin: 0;
 }
 
-.auth-panel h1,
 .topbar h2 {
   line-height: 1.05;
 }
 
-.auth-panel h1 {
-  font-size: clamp(2rem, 4vw, 3.4rem);
-}
-
 .topbar h2 {
   font-size: clamp(1.4rem, 2vw, 2rem);
-}
-
-.subcopy {
-  margin-top: 14px;
-  max-width: 56ch;
-  color: #475569;
-  line-height: 1.6;
-}
-
-.form-stack,
-.form-grid {
-  margin-top: 24px;
-  display: grid;
-  gap: 14px;
-}
-
-.form-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 label {
@@ -191,8 +92,7 @@ select:focus {
 }
 
 .btn,
-.chip,
-.link-button {
+.chip {
   appearance: none;
   border: 0;
   cursor: pointer;
@@ -231,24 +131,6 @@ select:focus {
 .btn.small {
   min-height: 40px;
   padding: 0 14px;
-}
-
-.btn.full {
-  grid-column: 1 / -1;
-}
-
-.link-button {
-  background: transparent;
-  color: #2563eb;
-  padding: 0;
-}
-
-.auth-footer {
-  margin-top: 16px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: #475569;
 }
 
 .message {
@@ -518,60 +400,25 @@ select:focus {
 }
 
 @media (max-width: 1080px) {
-  .auth-screen,
   .dashboard,
   .content-grid,
   .stats-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .auth-screen {
-    padding: 16px;
-  }
-
-  .login-screen {
-    background-position: center;
-  }
-
-  .login-screen .auth-panel {
-    width: min(100%, 460px);
-    justify-self: end;
-  }
+      grid-template-columns: 1fr;
+    }
 
   .ranking-panel {
-    position: static;
-  }
+      position: static;
+    }
 }
 
 @media (max-width: 720px) {
   .dashboard {
-    padding: 16px;
-  }
-
-  .auth-panel {
-    padding: 20px;
-  }
-
-  .login-screen {
-    background-position: center;
-    padding: 16px;
-  }
-
-  .login-screen .auth-panel {
-    width: 100%;
-    transform: none;
-    padding: 24px;
-    background: rgba(5, 12, 58, 0.88);
-  }
-
-  .form-grid {
-    grid-template-columns: 1fr;
-  }
+      padding: 16px;
+    }
 
   .topbar,
-  .lesson-actions,
-  .auth-footer {
-    align-items: flex-start;
-    flex-direction: column;
-  }
+  .lesson-actions {
+      align-items: flex-start;
+      flex-direction: column;
+    }
 }
