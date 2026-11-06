@@ -1,10 +1,13 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import './App.css'
 import './auth.css'
+import './trail-path.css'
 import logoImg from './assets/codequest.png'
+import TrailPathView from './components/TrailPathView'
 
 const TOKEN_KEY = 'codequest_token'
 const USER_KEY = 'codequest_user'
+const API_BASE_URL = import.meta.env.VITE_API_URL?.replace(/\/$/, '')
 
 const defaultRegisterForm = {
   nome: '',
@@ -30,15 +33,19 @@ function App() {
   })
 
   useEffect(() => {
-    const onPopState = () => setRoute(window.location.hash.replace('#', '') || 'dashboard')
+    const onPopState = () => {
+      const cleanHash = window.location.hash.replace(/^#\/?/, '') || 'dashboard'
+      setRoute(cleanHash)
+    }
     window.addEventListener('hashchange', onPopState)
     onPopState()
     return () => window.removeEventListener('hashchange', onPopState)
   }, [])
 
   const go = (nextRoute) => {
-    window.location.hash = nextRoute
-    setRoute(nextRoute)
+    const cleanRoute = nextRoute.replace(/^#\/?/, '')
+    window.location.hash = cleanRoute
+    setRoute(cleanRoute)
   }
 
   const signIn = (data) => {
@@ -75,7 +82,14 @@ function App() {
       return <LoginPage onGo={go} onSignedIn={signIn} />
     }
 
-    return <DashboardPage auth={auth} onSignOut={signOut} />
+    return (
+      <AuthenticatedGame
+        auth={auth}
+        route={route}
+        onGo={go}
+        onSignOut={signOut}
+      />
+    )
   }, [auth, route])
 
   return <div className="app-shell">{page}</div>
@@ -90,7 +104,8 @@ function refreshSession() {
       const stored = JSON.parse(localStorage.getItem(USER_KEY) || 'null')
       if (!stored?.refreshToken) return null
 
-      const response = await fetch('/api/auth/refresh', {
+      const refreshUrl = API_BASE_URL ? `${API_BASE_URL}/api/auth/refresh` : '/api/auth/refresh'
+      const response = await fetch(refreshUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refreshToken: stored.refreshToken }),
@@ -111,8 +126,9 @@ function refreshSession() {
 }
 
 async function request(path, options = {}, token) {
+  const url = API_BASE_URL ? `${API_BASE_URL}${path}` : path
   const send = (bearer) =>
-    fetch(path, {
+    fetch(url, {
       ...options,
       headers: {
         'Content-Type': 'application/json',
@@ -120,7 +136,6 @@ async function request(path, options = {}, token) {
         ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}),
       },
     })
-
   const response = await send(token)
   if (response.status !== 401 || !token) return response
 
@@ -130,6 +145,20 @@ async function request(path, options = {}, token) {
     return response
   }
   return send(newToken)
+}
+
+async function readResponsePayload(response) {
+  const text = await response.text()
+
+  if (!text) {
+    return null
+  }
+
+  try {
+    return JSON.parse(text)
+  } catch {
+    return { message: text }
+  }
 }
 
 const perfis = [
@@ -228,9 +257,13 @@ function useAuthSubmit(path, form, onSignedIn, fallbackMessage) {
         body: JSON.stringify(form),
       })
 
-      const payload = await response.json().catch(() => null)
+      const payload = await readResponsePayload(response)
       if (!response.ok) {
         throw new Error(payload?.message || fallbackMessage)
+      }
+
+      if (!payload) {
+        throw new Error('A API respondeu sem dados de autenticacao.')
       }
 
       onSignedIn(payload)
@@ -394,98 +427,133 @@ function RegisterPage({ onGo, onSignedIn }) {
   )
 }
 
-function DashboardPage({ auth, onSignOut }) {
+function AuthenticatedGame({ auth, route, onGo, onSignOut }) {
   const [profile, setProfile] = useState(auth.user)
   const [trilhas, setTrilhas] = useState([])
   const [ranking, setRanking] = useState([])
-  const [selectedTrailId, setSelectedTrailId] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [status, setStatus] = useState('')
 
-  const selectedTrail = trilhas.find((item) => item.id === selectedTrailId) || trilhas[0] || null
+  const reloadGameData = useCallback(async () => {
+    try {
+      const [profileRes, trailsRes, rankingRes] = await Promise.all([
+        request('/api/auth/me', {}, auth.token),
+        request('/api/trilhas', {}, auth.token),
+        request('/api/ranking?limite=10', {}, auth.token),
+      ])
+
+      const [profileData, trailsData, rankingData] = await Promise.all([
+        profileRes.json(),
+        trailsRes.json(),
+        rankingRes.json(),
+      ])
+
+      if (!profileRes.ok) throw new Error(profileData?.message || 'Falha ao carregar perfil.')
+      if (!trailsRes.ok) throw new Error(trailsData?.message || 'Falha ao carregar trilhas.')
+      if (!rankingRes.ok) throw new Error(rankingData?.message || 'Falha ao carregar ranking.')
+
+      setProfile(profileData)
+      setTrilhas(trailsData)
+      setRanking(rankingData)
+    } catch (err) {
+      setError(err.message)
+    }
+  }, [auth.token])
 
   useEffect(() => {
     const load = async () => {
       setLoading(true)
       setError('')
-
-      try {
-        const [profileRes, trailsRes, rankingRes] = await Promise.all([
-          request('/api/auth/me', {}, auth.token),
-          request('/api/trilhas', {}, auth.token),
-          request('/api/ranking?limite=10', {}, auth.token),
-        ])
-
-        const [profileData, trailsData, rankingData] = await Promise.all([
-          profileRes.json(),
-          trailsRes.json(),
-          rankingRes.json(),
-        ])
-
-        if (!profileRes.ok) throw new Error(profileData?.message || 'Falha ao carregar perfil.')
-        if (!trailsRes.ok) throw new Error(trailsData?.message || 'Falha ao carregar trilhas.')
-        if (!rankingRes.ok) throw new Error(rankingData?.message || 'Falha ao carregar ranking.')
-
-        setProfile(profileData)
-        setTrilhas(trailsData)
-        setRanking(rankingData)
-        setSelectedTrailId(trailsData[0]?.id ?? null)
-      } catch (err) {
-        setError(err.message)
-      } finally {
-        setLoading(false)
-      }
+      await reloadGameData()
+      setLoading(false)
     }
-
     load()
-  }, [auth.token])
+  }, [reloadGameData])
 
-  const completeLesson = async (lessonId) => {
+  const completeLesson = async (lessonId, answers = {}) => {
     setStatus('')
 
-    try {
-      const response = await request(`/api/licoes/${lessonId}/concluir`, {
+    const response = await request(
+      `/api/licoes/${lessonId}/concluir`,
+      {
         method: 'POST',
-      }, auth.token)
+        body: JSON.stringify({ respostas: answers }),
+      },
+      auth.token,
+    )
 
-      const payload = await response.json()
-      if (!response.ok) {
-        throw new Error(payload?.message || 'Nao foi possivel concluir a licao.')
-      }
-
-      setProfile((current) => ({
-        ...current,
-        xpTotal: payload.xpTotal,
-        nivelAtual: payload.nivelAtual,
-      }))
-      setStatus(`Licao concluida. +${payload.xpGanho} XP`)
-
-      const [trailsRes, rankingRes] = await Promise.all([
-        request('/api/trilhas', {}, auth.token),
-        request('/api/ranking?limite=10', {}, auth.token),
-      ])
-
-      setTrilhas(await trailsRes.json())
-      setRanking(await rankingRes.json())
-    } catch (err) {
-      setStatus(err.message)
+    const payload = await response.json()
+    if (!response.ok) {
+      throw new Error(payload?.message || 'Não foi possível concluir a lição.')
     }
+
+    setProfile((current) => ({
+      ...current,
+      xpTotal: payload.xpTotal,
+      nivelAtual: payload.nivelAtual,
+    }))
+    setStatus(`Lição concluída! +${payload.xpGanho} XP`)
+
+    await reloadGameData()
   }
 
+  // Handle dedicated trail route: #trilha/:id
+  if (route.startsWith('trilha/')) {
+    const trailId = route.replace(/^trilha\//, '')
+    const selectedTrail = trilhas.find((t) => t.id === trailId) || trilhas[0]
+
+    return (
+      <TrailPathView
+        trail={selectedTrail}
+        profile={profile}
+        onGoBack={() => onGo('dashboard')}
+        onCompleteLesson={completeLesson}
+      />
+    )
+  }
+
+  // Otherwise, default to DashboardPage
+  return (
+    <DashboardPage
+      profile={profile}
+      trilhas={trilhas}
+      ranking={ranking}
+      loading={loading}
+      error={error}
+      status={status}
+      onGo={onGo}
+      onSignOut={onSignOut}
+    />
+  )
+}
+
+function DashboardPage({
+  profile,
+  trilhas,
+  ranking,
+  loading,
+  error,
+  status,
+  onGo,
+  onSignOut,
+}) {
   const stats = [
     { label: 'XP total', value: profile?.xpTotal ?? 0 },
-    { label: 'Nivel atual', value: profile?.nivelAtual ?? 1 },
+    { label: 'Nível atual', value: profile?.nivelAtual ?? 1 },
     { label: 'Trilhas', value: trilhas.length },
     {
-      label: 'Licoes concluidas',
+      label: 'Lições concluídas',
       value: trilhas.reduce(
         (count, trail) =>
-          count + trail.licoes.filter((lesson) => lesson.concluida).length,
+          count + (trail.licoes || []).filter((lesson) => lesson.concluida).length,
         0,
       ),
     },
   ]
+
+  const firstIncompleteTrail =
+    trilhas.find((t) => t.licoes?.some((l) => !l.concluida)) || trilhas[0]
 
   return (
     <main className="dashboard">
@@ -508,10 +576,17 @@ function DashboardPage({ auth, onSignOut }) {
         </div>
 
         <div className="sidebar-actions">
-          <button className="btn ghost" onClick={() => setSelectedTrailId(trilhas[0]?.id ?? null)}>
+          <button className="btn ghost" onClick={() => onGo('dashboard')}>
             Trilhas
           </button>
-          <button className="btn ghost" onClick={() => setSelectedTrailId(trilhas[0]?.id ?? null)}>
+          <button
+            className="btn ghost"
+            onClick={() => {
+              if (firstIncompleteTrail) {
+                onGo(`trilha/${firstIncompleteTrail.id}`)
+              }
+            }}
+          >
             Aprender
           </button>
           <button className="btn ghost" onClick={onSignOut}>
@@ -527,12 +602,12 @@ function DashboardPage({ auth, onSignOut }) {
             <h2>Dashboard de aprendizado</h2>
           </div>
           <div className="topbar-status">
-            <span>Nivel {profile?.nivelAtual ?? 1}</span>
+            <span>Nível {profile?.nivelAtual ?? 1}</span>
             <span>{profile?.xpTotal ?? 0} XP</span>
           </div>
         </header>
 
-        {loading ? <p className="message">Carregando conteudo...</p> : null}
+        {loading ? <p className="message">Carregando conteúdo...</p> : null}
         {error ? <p className="message error">{error}</p> : null}
         {status ? <p className="message success">{status}</p> : null}
 
@@ -550,63 +625,91 @@ function DashboardPage({ auth, onSignOut }) {
             <div className="panel-head">
               <div>
                 <p className="eyebrow">Trilhas</p>
-                <h3>{selectedTrail?.titulo || 'Nenhuma trilha'}</h3>
-              </div>
-              <div className="trail-picker">
-                {trilhas.map((trail) => (
-                  <button
-                    key={trail.id}
-                    className={`chip ${trail.id === selectedTrail?.id ? 'active' : ''}`}
-                    onClick={() => setSelectedTrailId(trail.id)}
-                  >
-                    {trail.titulo}
-                  </button>
-                ))}
+                <h3>Trilhas de Aprendizado</h3>
               </div>
             </div>
 
-            <p className="panel-copy">{selectedTrail?.descricao}</p>
+            <p className="panel-copy">
+              Escolha uma trilha abaixo para acessar o mapa com as lições em níveis, responder os desafios e acumular XP.
+            </p>
 
-            <div className="lesson-list">
-              {selectedTrail?.licoes?.map((lesson) => (
-                <article className="lesson-card" key={lesson.id}>
-                  <div>
-                    <p className="lesson-title">
-                      {lesson.ordem}. {lesson.titulo}
-                    </p>
-                    <p className="lesson-meta">
-                      {lesson.xpBonus} XP - {lesson.perguntas.length} perguntas
-                    </p>
-                  </div>
-                  <p className="lesson-summary">{lesson.resumo}</p>
-                  <div className="lesson-actions">
-                    <span className={`pill ${lesson.concluida ? 'done' : ''}`}>
-                      {lesson.concluida ? 'Concluida' : 'Disponivel'}
-                    </span>
-                    <button
-                      className="btn primary small"
-                      onClick={() => completeLesson(lesson.id)}
-                      disabled={lesson.concluida}
-                    >
-                      {lesson.concluida ? 'Feita' : 'Concluir'}
-                    </button>
-                  </div>
+            <div className="trails-stack">
+              {trilhas.map((trail, index) => {
+                const totalLessons = trail.licoes?.length || 0
+                const completedLessons =
+                  trail.licoes?.filter((l) => l.concluida).length || 0
+                const progressPercent =
+                  totalLessons > 0
+                    ? Math.round((completedLessons / totalLessons) * 100)
+                    : 0
+                const totalXp =
+                  trail.licoes?.reduce((sum, l) => sum + (l.xpBonus || 0), 0) || 0
+                const isAllDone =
+                  completedLessons === totalLessons && totalLessons > 0
 
-                  <details className="quiz-block">
-                    <summary>Ver quiz</summary>
-                    {lesson.perguntas.map((question) => (
-                      <div key={question.id} className="quiz-card">
-                        <p className="question">{question.enunciado}</p>
-                        <ul className="options">
-                          {question.opcoes.map((option) => (
-                            <li key={option.id}>{option.texto}</li>
-                          ))}
-                        </ul>
+                return (
+                  <article className="trail-card" key={trail.id}>
+                    <div className="trail-card-header">
+                      <div className={`trail-card-icon-badge ${isAllDone ? 'done' : ''}`}>
+                        {isAllDone
+                          ? '⭐'
+                          : index === 0
+                          ? '💻'
+                          : index === 1
+                          ? '🌐'
+                          : '⚡'}
                       </div>
-                    ))}
-                  </details>
-                </article>
-              ))}
+                      <div className="trail-card-info">
+                        <div className="trail-card-tags">
+                          <span className="trail-tag">
+                            Trilha #{trail.ordem || index + 1}
+                          </span>
+                          <span className="trail-tag xp">+{totalXp} XP</span>
+                          {isAllDone && (
+                            <span className="trail-tag done">Concluída ⭐</span>
+                          )}
+                        </div>
+                        <h3 className="trail-card-title">{trail.titulo}</h3>
+                        <p className="trail-card-desc">{trail.descricao}</p>
+                      </div>
+                    </div>
+
+                    <div className="trail-card-footer">
+                      <div className="trail-progress-container">
+                        <div className="trail-progress-labels">
+                          <span>Progresso</span>
+                          <strong>
+                            {completedLessons} de {totalLessons} lições ({progressPercent}%)
+                          </strong>
+                        </div>
+                        <div className="trail-progress-bar">
+                          <div
+                            className="trail-progress-fill"
+                            style={{ width: `${progressPercent}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        className="btn primary trail-card-btn"
+                        onClick={() => onGo(`trilha/${trail.id}`)}
+                      >
+                        {completedLessons === 0
+                          ? 'Iniciar Trilha'
+                          : isAllDone
+                          ? 'Revisar Níveis'
+                          : 'Continuar Trilha'}{' '}
+                        →
+                      </button>
+                    </div>
+                  </article>
+                )
+              })}
+
+              {trilhas.length === 0 && !loading && (
+                <p className="message">Nenhuma trilha encontrada.</p>
+              )}
             </div>
           </article>
 
@@ -628,6 +731,9 @@ function DashboardPage({ auth, onSignOut }) {
                   <span>{row.xpTotal} XP</span>
                 </div>
               ))}
+              {ranking.length === 0 && !loading && (
+                <p className="message">Nenhum jogador no ranking ainda.</p>
+              )}
             </div>
           </aside>
         </section>
