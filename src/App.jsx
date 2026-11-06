@@ -4,6 +4,7 @@ import './auth.css'
 import './trail-path.css'
 import logoImg from './assets/codequest.png'
 import TrailPathView from './components/TrailPathView'
+import DedicatedTrilhasPage from './components/DedicatedTrilhasPage'
 
 const TOKEN_KEY = 'codequest_token'
 const USER_KEY = 'codequest_user'
@@ -160,12 +161,6 @@ async function readResponsePayload(response) {
     return { message: text }
   }
 }
-
-const perfis = [
-  { value: 'ALUNO', label: 'Aluno', hint: 'Aprenda nas trilhas e ganhe XP' },
-  { value: 'PROFESSOR', label: 'Professor', hint: 'Acompanhe a evolução da turma' },
-  { value: 'ADMIN', label: 'Admin', hint: 'Gerencie a plataforma' },
-]
 
 function BrandMark() {
   return (
@@ -388,28 +383,6 @@ function RegisterPage({ onGo, onSignedIn }) {
           hint="Mínimo de 6 caracteres."
         />
 
-        <fieldset className="field">
-          <legend className="field-label">Perfil</legend>
-          <div className="role-options">
-            {perfis.map((perfil) => (
-              <label
-                key={perfil.value}
-                className={`role-option ${form.perfil === perfil.value ? 'selected' : ''}`}
-              >
-                <input
-                  type="radio"
-                  name="perfil"
-                  value={perfil.value}
-                  checked={form.perfil === perfil.value}
-                  onChange={(e) => setForm({ ...form, perfil: e.target.value })}
-                />
-                <span className="role-name">{perfil.label}</span>
-                <span className="role-hint">{perfil.hint}</span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
-
         {status ? <p className="auth-alert" role="alert">{status}</p> : null}
 
         <button className="auth-submit" type="submit" disabled={loading}>
@@ -457,7 +430,11 @@ function AuthenticatedGame({ auth, route, onGo, onSignOut }) {
       setTrilhas(trailsData)
       setRanking(rankingData)
     } catch (err) {
-      setError(err.message)
+      setError(
+        err.message === 'Failed to fetch'
+          ? 'Servidor backend offline (http://localhost:8080). Inicie o backend com `mvn spring-boot:run`.'
+          : err.message,
+      )
     }
   }, [auth.token])
 
@@ -498,7 +475,10 @@ function AuthenticatedGame({ auth, route, onGo, onSignOut }) {
     await reloadGameData()
   }
 
-  // Handle dedicated trail route: #trilha/:id
+  const firstIncompleteTrail =
+    trilhas.find((t) => t.licoes?.some((l) => !l.concluida)) || trilhas[0]
+
+  // Rota dedicada da trilha: #trilha/:id
   if (route.startsWith('trilha/')) {
     const trailId = route.replace(/^trilha\//, '')
     const selectedTrail = trilhas.find((t) => t.id === trailId) || trilhas[0]
@@ -507,41 +487,29 @@ function AuthenticatedGame({ auth, route, onGo, onSignOut }) {
       <TrailPathView
         trail={selectedTrail}
         profile={profile}
-        onGoBack={() => onGo('dashboard')}
+        onGoBack={() => onGo('trilhas')}
         onCompleteLesson={completeLesson}
       />
     )
   }
 
-  // Otherwise, default to DashboardPage
-  return (
-    <DashboardPage
-      profile={profile}
-      trilhas={trilhas}
-      ranking={ranking}
-      loading={loading}
-      error={error}
-      status={status}
-      onGo={onGo}
-      onSignOut={onSignOut}
-    />
-  )
-}
+  // Rota dedicada exclusiva para as trilhas: #trilhas
+  if (route === 'trilhas') {
+    return (
+      <DedicatedTrilhasPage
+        profile={profile}
+        trilhas={trilhas}
+        loading={loading}
+        onGoBack={() => onGo('dashboard')}
+        onGo={onGo}
+      />
+    )
+  }
 
-function DashboardPage({
-  profile,
-  trilhas,
-  ranking,
-  loading,
-  error,
-  status,
-  onGo,
-  onSignOut,
-}) {
   const stats = [
     { label: 'XP total', value: profile?.xpTotal ?? 0 },
     { label: 'Nível atual', value: profile?.nivelAtual ?? 1 },
-    { label: 'Trilhas', value: trilhas.length },
+    { label: 'Trilhas ativas', value: trilhas.length },
     {
       label: 'Lições concluídas',
       value: trilhas.reduce(
@@ -551,9 +519,6 @@ function DashboardPage({
       ),
     },
   ]
-
-  const firstIncompleteTrail =
-    trilhas.find((t) => t.licoes?.some((l) => !l.concluida)) || trilhas[0]
 
   return (
     <main className="dashboard">
@@ -566,18 +531,18 @@ function DashboardPage({
           </div>
         </div>
 
-        <div className="profile-card">
-          <p className="profile-name">{profile?.nome}</p>
-          <p className="profile-meta">{profile?.email}</p>
-          <div className="profile-badges">
-            <span>Perfil: {profile?.perfil}</span>
-            <span>XP: {profile?.xpTotal ?? 0}</span>
-          </div>
-        </div>
-
         <div className="sidebar-actions">
-          <button className="btn ghost" onClick={() => onGo('dashboard')}>
-            Trilhas
+          <button
+            className={`btn ghost ${route === 'dashboard' ? 'active' : ''}`}
+            onClick={() => onGo('dashboard')}
+          >
+            🏠 Início
+          </button>
+          <button
+            className="btn ghost"
+            onClick={() => onGo('trilhas')}
+          >
+            🗺️ Trilhas
           </button>
           <button
             className="btn ghost"
@@ -587,10 +552,10 @@ function DashboardPage({
               }
             }}
           >
-            Aprender
+            ⚡ Aprender
           </button>
           <button className="btn ghost" onClick={onSignOut}>
-            Sair
+            🚪 Sair
           </button>
         </div>
       </aside>
@@ -599,11 +564,18 @@ function DashboardPage({
         <header className="topbar">
           <div>
             <p className="eyebrow">Jornada</p>
-            <h2>Dashboard de aprendizado</h2>
+            <h2>Dashboard do Jogador</h2>
           </div>
           <div className="topbar-status">
-            <span>Nível {profile?.nivelAtual ?? 1}</span>
-            <span>{profile?.xpTotal ?? 0} XP</span>
+            <div className="topbar-user-chip">
+              <div className="topbar-user-avatar">
+                {profile?.nome?.charAt(0)?.toUpperCase() ?? '?'}
+              </div>
+              <div className="topbar-user-info">
+                <span className="topbar-user-name">{profile?.nome}</span>
+                <span className="topbar-user-email">{profile?.email}</span>
+              </div>
+            </div>
           </div>
         </header>
 
@@ -620,125 +592,122 @@ function DashboardPage({
           ))}
         </section>
 
-        <section className="content-grid">
-          <article className="panel lessons-panel">
-            <div className="panel-head">
-              <div>
-                <p className="eyebrow">Trilhas</p>
-                <h3>Trilhas de Aprendizado</h3>
-              </div>
-            </div>
-
-            <p className="panel-copy">
-              Escolha uma trilha abaixo para acessar o mapa com as lições em níveis, responder os desafios e acumular XP.
-            </p>
-
-            <div className="trails-stack">
-              {trilhas.map((trail, index) => {
-                const totalLessons = trail.licoes?.length || 0
-                const completedLessons =
-                  trail.licoes?.filter((l) => l.concluida).length || 0
-                const progressPercent =
-                  totalLessons > 0
-                    ? Math.round((completedLessons / totalLessons) * 100)
-                    : 0
-                const totalXp =
-                  trail.licoes?.reduce((sum, l) => sum + (l.xpBonus || 0), 0) || 0
-                const isAllDone =
-                  completedLessons === totalLessons && totalLessons > 0
-
-                return (
-                  <article className="trail-card" key={trail.id}>
-                    <div className="trail-card-header">
-                      <div className={`trail-card-icon-badge ${isAllDone ? 'done' : ''}`}>
-                        {isAllDone
-                          ? '⭐'
-                          : index === 0
-                          ? '💻'
-                          : index === 1
-                          ? '🌐'
-                          : '⚡'}
-                      </div>
-                      <div className="trail-card-info">
-                        <div className="trail-card-tags">
-                          <span className="trail-tag">
-                            Trilha #{trail.ordem || index + 1}
-                          </span>
-                          <span className="trail-tag xp">+{totalXp} XP</span>
-                          {isAllDone && (
-                            <span className="trail-tag done">Concluída ⭐</span>
-                          )}
-                        </div>
-                        <h3 className="trail-card-title">{trail.titulo}</h3>
-                        <p className="trail-card-desc">{trail.descricao}</p>
-                      </div>
-                    </div>
-
-                    <div className="trail-card-footer">
-                      <div className="trail-progress-container">
-                        <div className="trail-progress-labels">
-                          <span>Progresso</span>
-                          <strong>
-                            {completedLessons} de {totalLessons} lições ({progressPercent}%)
-                          </strong>
-                        </div>
-                        <div className="trail-progress-bar">
-                          <div
-                            className="trail-progress-fill"
-                            style={{ width: `${progressPercent}%` }}
-                          />
-                        </div>
-                      </div>
-
-                      <button
-                        type="button"
-                        className="btn primary trail-card-btn"
-                        onClick={() => onGo(`trilha/${trail.id}`)}
-                      >
-                        {completedLessons === 0
-                          ? 'Iniciar Trilha'
-                          : isAllDone
-                          ? 'Revisar Níveis'
-                          : 'Continuar Trilha'}{' '}
-                        →
-                      </button>
-                    </div>
-                  </article>
-                )
-              })}
-
-              {trilhas.length === 0 && !loading && (
-                <p className="message">Nenhuma trilha encontrada.</p>
-              )}
-            </div>
-          </article>
-
-          <aside className="panel ranking-panel">
-            <div className="panel-head">
-              <div>
-                <p className="eyebrow">Ranking</p>
-                <h3>Top jogadores</h3>
-              </div>
-            </div>
-
-            <div className="ranking-list">
-              {ranking.map((row) => (
-                <div className="ranking-row" key={row.usuarioId}>
-                  <div>
-                    <strong>#{row.posicao}</strong>
-                    <p>{row.nome}</p>
-                  </div>
-                  <span>{row.xpTotal} XP</span>
-                </div>
-              ))}
-              {ranking.length === 0 && !loading && (
-                <p className="message">Nenhum jogador no ranking ainda.</p>
-              )}
-            </div>
-          </aside>
-        </section>
+        <DashboardHeroView
+          profile={profile}
+          trilhas={trilhas}
+          ranking={ranking}
+          firstIncompleteTrail={firstIncompleteTrail}
+          onGo={onGo}
+        />
       </section>
     </main>
+  )
+}
+
+/* ========================================================
+   DASHBOARD HERO VIEW: Card Atrativo sobre a Plataforma
+   ======================================================== */
+function DashboardHeroView({
+  profile,
+  trilhas,
+  ranking,
+  firstIncompleteTrail,
+  onGo,
+}) {
+  const totalLicoes = trilhas.reduce((acc, t) => acc + (t.licoes?.length || 0), 0)
+  const concluidas = trilhas.reduce(
+    (acc, t) => acc + (t.licoes?.filter((l) => l.concluida).length || 0),
+    0,
+  )
+
+  return (
+    <section className="content-grid">
+      <article className="panel platform-hero-card">
+        <div className="hero-card-body">
+          <div className="hero-card-headline">
+            <h3 className="hero-card-title">
+              Domine a programação de forma prática, dinâmica e interativa
+            </h3>
+            <p className="hero-card-lead">
+              O <strong>CodeQuest</strong> é o seu campo de treinamento em computação. Aqui a teoria
+              se conecta com quizzes e desafios reais: resolva missões, ganhe experiência (XP),
+              avance pelos níveis da trilha e dispute o ranking com outros estudantes.
+            </p>
+          </div>
+
+          <div className="platform-highlights-grid">
+            <div className="highlight-item">
+              <span className="highlight-icon">🗺️</span>
+              <div>
+                <h4>Trilhas em Níveis</h4>
+                <p>Navegue por um mapa interativo com lições conceituais organizadas passo a passo.</p>
+              </div>
+            </div>
+
+            <div className="highlight-item">
+              <span className="highlight-icon">📝</span>
+              <div>
+                <h4>Quizzes com Validação</h4>
+                <p>Teste seus conhecimentos com feedback imediato de acerto para fixar o aprendizado.</p>
+              </div>
+            </div>
+
+            <div className="highlight-item">
+              <span className="highlight-icon">⚡</span>
+              <div>
+                <h4>XP & Ranking</h4>
+                <p>Suba de nível a cada lição completada e alcance as primeiras colocações da turma.</p>
+              </div>
+            </div>
+          </div>
+
+
+          <div className="hero-card-actions">
+            <button
+              type="button"
+              className="btn primary hero-action-btn"
+              onClick={() => onGo('trilhas')}
+            >
+              Ver Trilhas 🗺️
+            </button>
+
+            {firstIncompleteTrail && (
+              <button
+                type="button"
+                className="btn ghost hero-action-btn"
+                onClick={() => onGo(`trilha/${firstIncompleteTrail.id}`)}
+              >
+                Continuar: {firstIncompleteTrail.titulo} ⚡
+              </button>
+            )}
+          </div>
+        </div>
+      </article>
+
+      <aside className="panel ranking-panel">
+        <div className="panel-head">
+          <div>
+            <p className="eyebrow">Ranking</p>
+            <h3>Top jogadores</h3>
+          </div>
+        </div>
+
+        <div className="ranking-list">
+          {ranking.map((row) => (
+            <div className="ranking-row" key={row.usuarioId}>
+              <div>
+                <strong>#{row.posicao}</strong>
+                <p>{row.nome}</p>
+              </div>
+              <span>{row.xpTotal} XP</span>
+            </div>
+          ))}
+          {ranking.length === 0 && (
+            <p className="message">Nenhum jogador no ranking ainda.</p>
+          )}
+        </div>
+      </aside>
+    </section>
   )
 }
 

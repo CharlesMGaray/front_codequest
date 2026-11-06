@@ -228,6 +228,19 @@ h3 {
   gap: 10px;
 }
 
+.sidebar-actions .btn {
+  justify-content: flex-start;
+  padding: 0 16px;
+  font-size: 0.92rem;
+}
+
+.sidebar-actions .btn.active {
+  background: rgba(56, 189, 248, 0.16);
+  border-color: var(--cq-cyan);
+  color: #ffffff;
+  box-shadow: 0 0 18px rgba(56, 189, 248, 0.25);
+}
+
 /* Conteúdo Principal */
 .main-content {
   display: grid;
@@ -243,23 +256,82 @@ h3 {
 
 .topbar-status {
   display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
+  align-items: center;
+  flex-shrink: 0;
 }
 
-.topbar-status span {
-  min-height: 38px;
-  display: inline-flex;
+.topbar-user-chip {
+  display: flex;
   align-items: center;
-  padding: 0 16px;
-  border-radius: 999px;
-  background: rgba(14, 21, 78, 0.8);
+  gap: 10px;
+  background: rgba(14, 21, 78, 0.75);
   border: 1px solid var(--cq-border);
-  color: var(--cq-gold);
+  border-radius: 999px;
+  padding: 6px 16px 6px 6px;
+  backdrop-filter: blur(8px);
+  transition: border-color 0.2s ease;
+}
+
+.topbar-user-chip:hover {
+  border-color: var(--cq-cyan);
+}
+
+.topbar-user-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--cq-cyan), var(--cq-blue));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--cq-font-heading);
+  font-weight: 800;
+  font-size: 1rem;
+  color: #fff;
+  flex-shrink: 0;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+}
+
+.topbar-user-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  min-width: 0;
+}
+
+.topbar-user-name {
   font-family: var(--cq-font-heading);
   font-weight: 700;
-  font-size: 0.92rem;
-  box-shadow: 0 0 15px rgba(251, 191, 36, 0.15);
+  font-size: 0.9rem;
+  color: var(--cq-heading);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+  /* reset pill */
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  min-height: unset !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+}
+
+.topbar-user-email {
+  font-size: 0.72rem;
+  color: rgba(255,255,255,0.4);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+  /* reset pill */
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  min-height: unset !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
 }
 
 /* Cards de Estatísticas */
@@ -367,6 +439,185 @@ h3 {
 }
 
 /* ========================================================
+   PLATFORM HERO SHOWCASE CARD (Substituindo trilhas no Início)
+   ======================================================== */
+.platform-hero-card {
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.hero-card-banner {
+  position: relative;
+  width: 100%;
+  height: 210px;
+  overflow: hidden;
+  background: linear-gradient(180deg, rgba(8, 12, 50, 0.4), rgba(6, 10, 44, 0.95));
+}
+
+.hero-card-art {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.65;
+  filter: saturate(1.2);
+}
+
+.hero-card-badge-wrap {
+  position: absolute;
+  bottom: 16px;
+  left: 24px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  z-index: 2;
+}
+
+.hero-card-pill {
+  background: rgba(10, 16, 64, 0.85);
+  border: 1px solid var(--cq-border);
+  color: var(--cq-cyan);
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  font-family: var(--cq-font-heading);
+  backdrop-filter: blur(8px);
+}
+
+.hero-card-pill.gold {
+  color: var(--cq-gold);
+  border-color: rgba(251, 191, 36, 0.3);
+  background: rgba(251, 191, 36, 0.12);
+}
+
+.hero-card-body {
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.hero-card-headline {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hero-card-title {
+  font-size: clamp(1.3rem, 2.2vw, 1.7rem);
+  font-family: var(--cq-font-heading);
+  color: var(--cq-heading);
+  line-height: 1.25;
+  margin: 0;
+}
+
+.hero-card-lead {
+  color: var(--cq-muted);
+  font-size: 0.98rem;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.hero-card-lead strong {
+  color: var(--cq-text);
+}
+
+/* 3 Destaques da plataforma */
+.platform-highlights-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin: 4px 0;
+}
+
+.highlight-item {
+  background: rgba(4, 8, 36, 0.55);
+  border: 1px solid var(--cq-border);
+  border-radius: 18px;
+  padding: 18px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.highlight-item:hover {
+  transform: translateY(-2px);
+  border-color: var(--cq-cyan);
+  background: rgba(56, 189, 248, 0.08);
+}
+
+.highlight-icon {
+  font-size: 1.75rem;
+}
+
+.highlight-item h4 {
+  font-family: var(--cq-font-heading);
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: var(--cq-heading);
+  margin: 0;
+}
+
+.highlight-item p {
+  font-size: 0.84rem;
+  color: var(--cq-muted);
+  line-height: 1.45;
+  margin: 0;
+}
+
+/* Barra de Resumo de Progresso Geral */
+.hero-card-summary-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  padding: 14px 20px;
+  background: rgba(120, 160, 255, 0.05);
+  border: 1px solid var(--cq-border);
+  border-radius: 16px;
+}
+
+.summary-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.summary-stat span {
+  font-size: 0.78rem;
+  color: var(--cq-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+
+.summary-stat strong {
+  font-family: var(--cq-font-heading);
+  font-size: 1.15rem;
+  color: var(--cq-text);
+}
+
+.summary-stat strong.text-gold {
+  color: var(--cq-gold);
+}
+
+.hero-card-actions {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 14px;
+  margin-top: 4px;
+}
+
+.hero-action-btn {
+  font-size: 0.96rem;
+  flex: 1 1 0;
+  white-space: nowrap;
+}
+
+/* ========================================================
    RESPONSIVIDADE
    ======================================================== */
 @media (max-width: 1080px) {
@@ -389,5 +640,14 @@ h3 {
   .topbar {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .platform-highlights-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-card-summary-bar {
+    flex-direction: column;
+    gap: 12px;
   }
 }

@@ -1,4 +1,161 @@
 /* ========================================================
+   DEDICATED TRILHAS ROUTE PAGE (#trilhas)
+   ======================================================== */
+.dedicated-trilhas-screen {
+  min-height: 100vh;
+  min-height: 100svh;
+  background: radial-gradient(circle at 50% 10%, #2b1168 0%, #150a3d 50%, #060a2c 100%);
+  color: var(--cq-text);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+
+.dedicated-trilhas-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  max-width: 960px;
+  width: 100%;
+  margin: 0 auto;
+  position: relative;
+  z-index: 10;
+  box-sizing: border-box;
+}
+
+.btn-back-dashboard {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 12px;
+  background: rgba(120, 160, 255, 0.08);
+  border: 1px solid var(--cq-border);
+  color: var(--cq-text);
+  font-family: var(--cq-font-heading);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.btn-back-dashboard svg {
+  width: 18px;
+  height: 18px;
+}
+
+.btn-back-dashboard:hover {
+  background: rgba(56, 189, 248, 0.15);
+  border-color: var(--cq-cyan);
+  color: #ffffff;
+  transform: translateX(-2px);
+}
+
+.dedicated-trilhas-container {
+  flex: 1;
+  max-width: 960px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 10px 24px 80px;
+  position: relative;
+  z-index: 2;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.dedicated-trilhas-hero {
+  background: var(--cq-panel-glass);
+  border: 1px solid var(--cq-border);
+  border-radius: 24px;
+  padding: 28px 32px;
+  box-shadow: var(--cq-shadow-card);
+  backdrop-filter: blur(14px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 28px;
+}
+
+.hero-text-block h2 {
+  font-family: var(--cq-font-heading);
+  font-size: clamp(1.4rem, 2.4vw, 1.9rem);
+  font-weight: 700;
+  color: var(--cq-heading);
+  margin: 6px 0 8px;
+}
+
+.hero-text-block p {
+  color: var(--cq-muted);
+  font-size: 0.96rem;
+  line-height: 1.6;
+  max-width: 580px;
+  margin: 0;
+}
+
+.dedicated-stats-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 170px;
+}
+
+.mini-stat-badge {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  padding: 9px 16px;
+  border-radius: 12px;
+  background: rgba(4, 8, 36, 0.6);
+  border: 1px solid var(--cq-border);
+  font-size: 0.85rem;
+}
+
+.mini-stat-badge span {
+  color: var(--cq-muted);
+}
+
+.mini-stat-badge strong {
+  font-family: var(--cq-font-heading);
+  color: var(--cq-cyan);
+}
+
+.mini-stat-badge strong.text-gold {
+  color: var(--cq-gold);
+}
+
+.dedicated-trails-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.trail-card.dedicated-card {
+  padding: 26px 30px;
+}
+
+@media (max-width: 860px) {
+  .dedicated-trilhas-hero {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .dedicated-stats-row {
+    width: 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .mini-stat-badge {
+    flex: 1;
+    min-width: 130px;
+  }
+}
+
+/* ========================================================
    COSMIC TRAIL PATH VIEW (Gamified Route)
    ======================================================== */
 
