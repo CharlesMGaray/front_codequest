@@ -1,8 +1,25 @@
 import { useState } from 'react'
 import DukeMascot from './DukeMascot'
 
-export default function QuizModal({ lesson, isCompleted, onClose, onComplete }) {
-  const perguntas = lesson?.perguntas || []
+export default function QuizModal({
+  lesson,
+  isCompleted,
+  skillProgress,
+  onClose,
+  onAnswer,
+  onComplete,
+}) {
+  const [perguntas] = useState(() => {
+    const questions = [...(lesson?.perguntas || [])]
+    const mastery = skillProgress?.dominio ?? 50
+    if (mastery < 60) {
+      return questions.sort((a, b) => (a.dificuldade || 1) - (b.dificuldade || 1))
+    }
+    if (mastery >= 80) {
+      return questions.sort((a, b) => (b.dificuldade || 1) - (a.dificuldade || 1))
+    }
+    return questions
+  })
   const [stage, setStage] = useState('intro') // 'intro' | 'quiz' | 'celebration'
   const [currentIdx, setCurrentIdx] = useState(0)
   const [answers, setAnswers] = useState({})
@@ -13,10 +30,10 @@ export default function QuizModal({ lesson, isCompleted, onClose, onComplete }) 
   const currentQ = perguntas[currentIdx] || null
   const selectedOptionId = currentQ ? answers[currentQ.id] : null
   const currentVerification = currentQ ? verifiedMap[currentQ.id] : null
-  const isCurrentVerifiedCorrect = isCompleted || Boolean(currentVerification?.isCorrect)
+  const isCurrentVerifiedCorrect = Boolean(currentVerification?.isCorrect)
 
   const handleSelectOption = (optionId) => {
-    if (!currentQ || isCompleted) return
+    if (!currentQ || isCurrentVerifiedCorrect) return
 
     setAnswers((prev) => ({
       ...prev,
@@ -33,19 +50,28 @@ export default function QuizModal({ lesson, isCompleted, onClose, onComplete }) 
     }
   }
 
-  const handleVerify = () => {
+  const handleVerify = async () => {
     if (!currentQ || !selectedOptionId) return
 
-    const chosenOption = currentQ.opcoes.find((o) => o.id === selectedOptionId)
-    const isCorrect = Boolean(chosenOption?.correta)
-
-    setVerifiedMap((prev) => ({
-      ...prev,
-      [currentQ.id]: {
-        isCorrect,
-        optionId: selectedOptionId,
-      },
-    }))
+    setSubmitting(true)
+    setErrorMsg('')
+    try {
+      const result = await onAnswer(lesson.id, currentQ.id, selectedOptionId)
+      setVerifiedMap((prev) => ({
+        ...prev,
+        [currentQ.id]: {
+          isCorrect: result.correta,
+          optionId: selectedOptionId,
+          masteryScore: result.dominio,
+          masteryLevel: result.nivelDominio,
+          reviewDays: result.diasAteRevisao,
+        },
+      }))
+    } catch (err) {
+      setErrorMsg(err.message || 'Não foi possível registrar a resposta.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const handleNext = () => {
@@ -175,6 +201,30 @@ export default function QuizModal({ lesson, isCompleted, onClose, onComplete }) 
                 </div>
               </div>
 
+              <div className="adaptive-quiz-guidance">
+                <strong>
+                  {skillProgress
+                    ? `Domínio atual: ${skillProgress.dominio}%`
+                    : 'Vamos avaliar seu domínio'}
+                </strong>
+                <p>
+                  {!skillProgress || skillProgress.dominio < 60
+                    ? 'Começaremos pelas questões mais acessíveis e recomendaremos revisão se necessário.'
+                    : skillProgress.dominio >= 80
+                    ? 'Seu domínio está consistente; o quiz começará pelos desafios mais difíceis.'
+                    : 'As questões seguem uma progressão gradual para consolidar esta habilidade.'}
+                </p>
+                {skillProgress && (
+                  <div className="adaptive-skill-bar" role="progressbar"
+                    aria-label="Domínio da habilidade"
+                    aria-valuenow={skillProgress.dominio}
+                    aria-valuemin="0"
+                    aria-valuemax="100">
+                    <span style={{ width: `${skillProgress.dominio}%` }} />
+                  </div>
+                )}
+              </div>
+
               {errorMsg && <p className="message error">{errorMsg}</p>}
             </div>
 
@@ -227,6 +277,7 @@ export default function QuizModal({ lesson, isCompleted, onClose, onComplete }) 
                   </button>
                   <span className="quiz-badge">
                     Questão {currentIdx + 1}/{perguntas.length}
+                    {currentQ?.dificuldade ? ` • Desafio ${currentQ.dificuldade}` : ''}
                   </span>
                 </div>
                 <h3>{lesson.titulo}</h3>
@@ -275,9 +326,7 @@ export default function QuizModal({ lesson, isCompleted, onClose, onComplete }) 
                         currentVerification?.optionId === opcao.id
 
                       let statusClass = ''
-                      if (isCompleted && opcao.correta) {
-                        statusClass = 'correct'
-                      } else if (isOptionVerified) {
+                      if (isOptionVerified) {
                         statusClass = currentVerification.isCorrect
                           ? 'correct'
                           : 'wrong'
@@ -291,7 +340,7 @@ export default function QuizModal({ lesson, isCompleted, onClose, onComplete }) 
                           type="button"
                           className={`quiz-option-btn ${statusClass}`}
                           onClick={() => handleSelectOption(opcao.id)}
-                          disabled={isCompleted || isCurrentVerifiedCorrect}
+                          disabled={isCurrentVerifiedCorrect}
                         >
                           <span className="option-letter">{letter}</span>
                           <span className="option-text">{opcao.texto}</span>
@@ -317,9 +366,15 @@ export default function QuizModal({ lesson, isCompleted, onClose, onComplete }) 
                       }`}
                     >
                       {currentVerification.isCorrect ? (
-                        <p>🎉 <strong>Muito bem!</strong> Resposta correta!</p>
+                        <div>
+                          <p>🎉 <strong>Muito bem!</strong> Resposta correta!</p>
+                          <p>Domínio estimado: {currentVerification.masteryScore}% · próxima revisão em {currentVerification.reviewDays} {currentVerification.reviewDays === 1 ? 'dia' : 'dias'}.</p>
+                        </div>
                       ) : (
-                        <p>❌ <strong>Ops! Resposta incorreta.</strong> Escolha outra opção e tente novamente!</p>
+                        <div>
+                          <p>❌ <strong>Ops! Resposta incorreta.</strong> Escolha outra opção e tente novamente!</p>
+                          <p>Domínio atualizado: {currentVerification.masteryScore}%. Vamos reforçar esta habilidade.</p>
+                        </div>
                       )}
                     </div>
                   )}
@@ -356,32 +411,14 @@ export default function QuizModal({ lesson, isCompleted, onClose, onComplete }) 
               )}
 
               {/* Action Buttons: Verify vs Next vs Finish */}
-              {isCompleted ? (
-                !isLastQuestion ? (
-                  <button
-                    type="button"
-                    className="btn primary small"
-                    onClick={handleNext}
-                  >
-                    Próxima →
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="btn primary small"
-                    onClick={onClose}
-                  >
-                    Fechar
-                  </button>
-                )
-              ) : !isCurrentVerifiedCorrect && perguntas.length > 0 ? (
+              {!isCurrentVerifiedCorrect && perguntas.length > 0 ? (
                 <button
                   type="button"
                   className="btn primary small btn-verify"
                   onClick={handleVerify}
                   disabled={!selectedOptionId || submitting}
                 >
-                  Verificar Resposta ✨
+                  {submitting ? 'Avaliando...' : 'Verificar Resposta ✨'}
                 </button>
               ) : !isLastQuestion ? (
                 <button
@@ -391,6 +428,14 @@ export default function QuizModal({ lesson, isCompleted, onClose, onComplete }) 
                   disabled={submitting}
                 >
                   Próxima →
+                </button>
+              ) : isCompleted ? (
+                <button
+                  type="button"
+                  className="btn primary small"
+                  onClick={onClose}
+                >
+                  Fechar
                 </button>
               ) : (
                 <button

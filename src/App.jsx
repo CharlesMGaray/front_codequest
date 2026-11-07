@@ -403,6 +403,7 @@ function RegisterPage({ onGo, onSignedIn }) {
 function AuthenticatedGame({ auth, route, onGo, onSignOut }) {
   const [profile, setProfile] = useState(auth.user)
   const [trilhas, setTrilhas] = useState([])
+  const [progresso, setProgresso] = useState([])
   const [ranking, setRanking] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -410,25 +411,29 @@ function AuthenticatedGame({ auth, route, onGo, onSignOut }) {
 
   const reloadGameData = useCallback(async () => {
     try {
-      const [profileRes, trailsRes, rankingRes] = await Promise.all([
+      const [profileRes, trailsRes, rankingRes, progressRes] = await Promise.all([
         request('/api/auth/me', {}, auth.token),
         request('/api/trilhas', {}, auth.token),
         request('/api/ranking?limite=10', {}, auth.token),
+        request('/api/progresso', {}, auth.token),
       ])
 
-      const [profileData, trailsData, rankingData] = await Promise.all([
+      const [profileData, trailsData, rankingData, progressData] = await Promise.all([
         profileRes.json(),
         trailsRes.json(),
         rankingRes.json(),
+        progressRes.json(),
       ])
 
       if (!profileRes.ok) throw new Error(profileData?.message || 'Falha ao carregar perfil.')
       if (!trailsRes.ok) throw new Error(trailsData?.message || 'Falha ao carregar trilhas.')
       if (!rankingRes.ok) throw new Error(rankingData?.message || 'Falha ao carregar ranking.')
+      if (!progressRes.ok) throw new Error(progressData?.message || 'Falha ao carregar progresso adaptativo.')
 
       setProfile(profileData)
       setTrilhas(trailsData)
       setRanking(rankingData)
+      setProgresso(progressData)
     } catch (err) {
       setError(
         err.message === 'Failed to fetch'
@@ -475,19 +480,56 @@ function AuthenticatedGame({ auth, route, onGo, onSignOut }) {
     await reloadGameData()
   }
 
+  const answerQuestion = async (lessonId, questionId, optionId) => {
+    const response = await request(
+      `/api/licoes/${lessonId}/responder`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ questionId, optionId }),
+      },
+      auth.token,
+    )
+    const payload = await response.json()
+    if (!response.ok) {
+      throw new Error(payload?.message || 'Não foi possível registrar a resposta.')
+    }
+
+    setProgresso((current) => {
+      const previous = current.find((skill) => skill.skillId === payload.skillId)
+      const next = {
+        skillId: payload.skillId,
+        licaoId: payload.licaoId,
+        trilhaId: payload.trilhaId,
+        nome: payload.habilidade,
+        dominio: payload.dominio,
+        nivelDominio: payload.nivelDominio,
+        tentativas: payload.tentativas,
+        acertos: (previous?.acertos || 0) + (payload.correta ? 1 : 0),
+        proximaRevisao: payload.proximaRevisao,
+      }
+      return [...current.filter((skill) => skill.skillId !== payload.skillId), next]
+        .sort((a, b) => a.dominio - b.dominio)
+    })
+    return payload
+  }
+
   const firstIncompleteTrail =
     trilhas.find((t) => t.licoes?.some((l) => !l.concluida)) || trilhas[0]
 
   // Rota dedicada da trilha: #trilha/:id
   if (route.startsWith('trilha/')) {
-    const trailId = route.replace(/^trilha\//, '')
+    const [trailRoute, query = ''] = route.split('?')
+    const trailId = trailRoute.replace(/^trilha\//, '')
     const selectedTrail = trilhas.find((t) => t.id === trailId) || trilhas[0]
 
     return (
       <TrailPathView
         trail={selectedTrail}
         profile={profile}
+        progresso={progresso}
+        initialLessonId={new URLSearchParams(query).get('licao')}
         onGoBack={() => onGo('trilhas')}
+        onAnswerQuestion={answerQuestion}
         onCompleteLesson={completeLesson}
       />
     )
@@ -499,6 +541,7 @@ function AuthenticatedGame({ auth, route, onGo, onSignOut }) {
       <DedicatedTrilhasPage
         profile={profile}
         trilhas={trilhas}
+        progresso={progresso}
         loading={loading}
         onGoBack={() => onGo('dashboard')}
         onGo={onGo}
@@ -593,8 +636,7 @@ function AuthenticatedGame({ auth, route, onGo, onSignOut }) {
         </section>
 
         <DashboardHeroView
-          profile={profile}
-          trilhas={trilhas}
+          progresso={progresso}
           ranking={ranking}
           firstIncompleteTrail={firstIncompleteTrail}
           onGo={onGo}
@@ -608,17 +650,16 @@ function AuthenticatedGame({ auth, route, onGo, onSignOut }) {
    DASHBOARD HERO VIEW: Card Atrativo sobre a Plataforma
    ======================================================== */
 function DashboardHeroView({
-  profile,
-  trilhas,
+  progresso,
   ranking,
   firstIncompleteTrail,
   onGo,
 }) {
-  const totalLicoes = trilhas.reduce((acc, t) => acc + (t.licoes?.length || 0), 0)
-  const concluidas = trilhas.reduce(
-    (acc, t) => acc + (t.licoes?.filter((l) => l.concluida).length || 0),
-    0,
-  )
+  const habilidadesParaRevisar = progresso.filter(
+    (skill) =>
+      skill.dominio < 60
+      || (skill.proximaRevisao && Date.parse(skill.proximaRevisao) <= Date.now()),
+  ).length
 
   return (
     <section className="content-grid">
@@ -661,6 +702,19 @@ function DashboardHeroView({
             </div>
           </div>
 
+          <div className="adaptive-dashboard-summary">
+            <div>
+              <span className="eyebrow">APRENDIZADO ADAPTATIVO</span>
+              <p>
+                {progresso.length === 0
+                  ? 'Seu domínio será avaliado conforme você responde aos quizzes.'
+                  : `${progresso.length} habilidades avaliadas • ${habilidadesParaRevisar} precisam de revisão.`}
+              </p>
+            </div>
+            <button type="button" className="btn ghost small" onClick={() => onGo('trilhas')}>
+              Ver meu progresso
+            </button>
+          </div>
 
           <div className="hero-card-actions">
             <button

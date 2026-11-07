@@ -1,11 +1,14 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import DukeMascot from './DukeMascot'
 import QuizModal from './QuizModal'
 
 export default function TrailPathView({
   trail,
   profile,
+  progresso,
+  initialLessonId,
   onGoBack,
+  onAnswerQuestion,
   onCompleteLesson,
 }) {
   const [selectedLesson, setSelectedLesson] = useState(null)
@@ -14,6 +17,12 @@ export default function TrailPathView({
   const licoes = useMemo(() => {
     return [...(trail?.licoes || [])].sort((a, b) => a.ordem - b.ordem)
   }, [trail])
+
+  useEffect(() => {
+    if (!initialLessonId) return
+    const lesson = licoes.find((item) => item.id === initialLessonId)
+    if (lesson) setSelectedLesson(lesson)
+  }, [initialLessonId, licoes])
 
   // Determine active level index: first non-completed lesson
   const activeIndex = useMemo(() => {
@@ -205,7 +214,9 @@ export default function TrailPathView({
         <QuizModal
           lesson={selectedLesson}
           isCompleted={selectedLesson.concluida}
+          skillProgress={progresso.find((skill) => skill.skillId === selectedLesson.id)}
           onClose={() => setSelectedLesson(null)}
+          onAnswer={onAnswerQuestion}
           onComplete={handleCompleteAndRefresh}
         />
       )}

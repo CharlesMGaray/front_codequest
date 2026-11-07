@@ -1,6 +1,7 @@
 export default function DedicatedTrilhasPage({
   profile,
   trilhas,
+  progresso,
   loading,
   onGoBack,
   onGo,
@@ -19,6 +20,12 @@ export default function DedicatedTrilhasPage({
       (t.licoes?.reduce((sum, l) => sum + (l.xpBonus || 0), 0) || 0),
     0,
   )
+  const isReviewDue = (skill) =>
+    !skill.proximaRevisao || Date.parse(skill.proximaRevisao) <= Date.now()
+  const adaptiveSkills = [...progresso].sort((a, b) => {
+    const dueDifference = Number(isReviewDue(b)) - Number(isReviewDue(a))
+    return dueDifference || a.dominio - b.dominio
+  })
 
   return (
     <div className="dedicated-trilhas-screen">
@@ -95,6 +102,64 @@ export default function DedicatedTrilhasPage({
             </div>
           </div>
         </section>
+
+        {progresso.length > 0 && (
+          <section className="adaptive-progress-panel" aria-labelledby="adaptive-progress-title">
+            <div className="adaptive-progress-heading">
+              <div>
+                <span className="eyebrow">SEU PLANO DE ESTUDO</span>
+                <h2 id="adaptive-progress-title">Habilidades e revisões</h2>
+                <p>O domínio é atualizado a cada resposta e orienta a próxima revisão.</p>
+              </div>
+              <span className="adaptive-progress-count">{progresso.length} avaliadas</span>
+            </div>
+
+            <div className="adaptive-skills-list">
+              {adaptiveSkills.slice(0, 4)
+                .map((skill) => (
+                  <article className="adaptive-skill-card" key={skill.skillId}>
+                    <div className="adaptive-skill-header">
+                      <div>
+                        <h3>{skill.nome}</h3>
+                        <span className={`adaptive-level level-${skill.nivelDominio?.toLowerCase()}`}>
+                          {skill.dominio < 60
+                            ? 'Revisar'
+                            : skill.dominio < 80
+                            ? 'Em desenvolvimento'
+                            : 'Dominada'}
+                        </span>
+                      </div>
+                      <strong>{skill.dominio}%</strong>
+                    </div>
+                    <div
+                      className="adaptive-skill-bar"
+                      role="progressbar"
+                      aria-label={`Domínio em ${skill.nome}`}
+                      aria-valuenow={skill.dominio}
+                      aria-valuemin="0"
+                      aria-valuemax="100"
+                    >
+                      <span style={{ width: `${skill.dominio}%` }} />
+                    </div>
+                    <p>
+                      {isReviewDue(skill)
+                        ? 'Revisão recomendada agora para reforçar esta habilidade.'
+                        : `Próxima revisão: ${new Date(skill.proximaRevisao).toLocaleDateString('pt-BR')}.`}
+                    </p>
+                    <button
+                      type="button"
+                      className="adaptive-review-link"
+                      onClick={() =>
+                        onGo(`trilha/${skill.trilhaId}?licao=${encodeURIComponent(skill.licaoId)}`)
+                      }
+                    >
+                      Revisar lição →
+                    </button>
+                  </article>
+                ))}
+            </div>
+          </section>
+        )}
 
         {loading && <p className="message">Carregando trilhas...</p>}
 
@@ -181,4 +246,3 @@ export default function DedicatedTrilhasPage({
     </div>
   )
 }
-
