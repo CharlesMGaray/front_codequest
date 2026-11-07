@@ -24,6 +24,12 @@ export default function TrailPathView({
     if (lesson) setSelectedLesson(lesson)
   }, [initialLessonId, licoes])
 
+  useEffect(() => {
+    if (!selectedLesson) return
+    const updatedLesson = licoes.find((item) => item.id === selectedLesson.id)
+    if (updatedLesson && updatedLesson !== selectedLesson) setSelectedLesson(updatedLesson)
+  }, [licoes, selectedLesson])
+
   // Determine active level index: first non-completed lesson
   const activeIndex = useMemo(() => {
     const idx = licoes.findIndex((l) => !l.concluida)

@@ -480,12 +480,12 @@ function AuthenticatedGame({ auth, route, onGo, onSignOut }) {
     await reloadGameData()
   }
 
-  const answerQuestion = async (lessonId, questionId, optionId) => {
+  const answerQuestion = async (lessonId, questionId, optionId, attemptNumber) => {
     const response = await request(
       `/api/licoes/${lessonId}/responder`,
       {
         method: 'POST',
-        body: JSON.stringify({ questionId, optionId }),
+        body: JSON.stringify({ questionId, optionId, tentativa: attemptNumber }),
       },
       auth.token,
     )
@@ -494,7 +494,28 @@ function AuthenticatedGame({ auth, route, onGo, onSignOut }) {
       throw new Error(payload?.message || 'Não foi possível registrar a resposta.')
     }
 
-    setProgresso((current) => {
+    setTrilhas((current) => current.map((trail) => ({
+      ...trail,
+      licoes: (trail.licoes || []).map((lesson) => lesson.id !== lessonId
+        ? lesson
+        : {
+            ...lesson,
+            perguntas: (lesson.perguntas || []).map((question) => question.id !== questionId
+              ? question
+              : {
+                  ...question,
+                  tentativasUsadas: payload.tentativaQuestao,
+                  resolvida: payload.resolvida,
+                  ultimaCorreta: payload.correta,
+                  ultimaOpcaoId: optionId,
+                  dicaAtual: payload.dica,
+                  explicacao: payload.explicacao,
+                  alternativaCorretaId: payload.alternativaCorretaId,
+                }),
+          }),
+    })))
+
+    if (payload.resolvida) setProgresso((current) => {
       const previous = current.find((skill) => skill.skillId === payload.skillId)
       const next = {
         skillId: payload.skillId,

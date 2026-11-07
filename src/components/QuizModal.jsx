@@ -22,49 +22,61 @@ export default function QuizModal({
   })
   const [stage, setStage] = useState('intro') // 'intro' | 'quiz' | 'celebration'
   const [currentIdx, setCurrentIdx] = useState(0)
-  const [answers, setAnswers] = useState({})
-  const [verifiedMap, setVerifiedMap] = useState({}) // { [qId]: { isCorrect: boolean, optionId: string } }
+  const [answers, setAnswers] = useState(() =>
+    Object.fromEntries(perguntas.filter((question) => question.ultimaOpcaoId)
+      .map((question) => [question.id, question.ultimaOpcaoId])),
+  )
+  const [verifiedMap, setVerifiedMap] = useState(() =>
+    Object.fromEntries(perguntas.filter((question) => question.tentativasUsadas > 0)
+      .map((question) => [question.id, {
+        isCorrect: Boolean(question.ultimaCorreta),
+        resolvida: question.resolvida,
+        optionId: question.ultimaOpcaoId,
+        tentativaQuestao: question.tentativasUsadas,
+        dica: question.dicaAtual,
+        explicacao: question.explicacao,
+        alternativaCorretaId: question.alternativaCorretaId,
+      }])),
+  )
   const [submitting, setSubmitting] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
 
   const currentQ = perguntas[currentIdx] || null
   const selectedOptionId = currentQ ? answers[currentQ.id] : null
   const currentVerification = currentQ ? verifiedMap[currentQ.id] : null
-  const isCurrentVerifiedCorrect = Boolean(currentVerification?.isCorrect)
+  const isCurrentResolved = isCompleted || Boolean(currentVerification?.resolvida)
 
   const handleSelectOption = (optionId) => {
-    if (!currentQ || isCurrentVerifiedCorrect) return
+    if (!currentQ || isCurrentResolved) return
 
     setAnswers((prev) => ({
       ...prev,
       [currentQ.id]: optionId,
     }))
 
-    // Reset verification if the question was previously marked wrong
-    if (currentVerification && !currentVerification.isCorrect) {
-      setVerifiedMap((prev) => {
-        const next = { ...prev }
-        delete next[currentQ.id]
-        return next
-      })
-    }
   }
 
   const handleVerify = async () => {
-    if (!currentQ || !selectedOptionId) return
+    if (!currentQ || !selectedOptionId || isCurrentResolved) return
 
     setSubmitting(true)
     setErrorMsg('')
     try {
-      const result = await onAnswer(lesson.id, currentQ.id, selectedOptionId)
+      const attemptNumber = (currentVerification?.tentativaQuestao || 0) + 1
+      const result = await onAnswer(lesson.id, currentQ.id, selectedOptionId, attemptNumber)
       setVerifiedMap((prev) => ({
         ...prev,
         [currentQ.id]: {
           isCorrect: result.correta,
+          resolvida: result.resolvida,
           optionId: selectedOptionId,
           masteryScore: result.dominio,
           masteryLevel: result.nivelDominio,
           reviewDays: result.diasAteRevisao,
+          tentativaQuestao: result.tentativaQuestao,
+          dica: result.dica,
+          explicacao: result.explicacao,
+          alternativaCorretaId: result.alternativaCorretaId,
         },
       }))
     } catch (err) {
@@ -326,7 +338,11 @@ export default function QuizModal({
                         currentVerification?.optionId === opcao.id
 
                       let statusClass = ''
-                      if (isOptionVerified) {
+                      if ((isCompleted && opcao.correta)
+                        || (currentVerification?.resolvida
+                          && opcao.id === currentVerification.alternativaCorretaId)) {
+                        statusClass = 'correct'
+                      } else if (isOptionVerified) {
                         statusClass = currentVerification.isCorrect
                           ? 'correct'
                           : 'wrong'
@@ -340,7 +356,7 @@ export default function QuizModal({
                           type="button"
                           className={`quiz-option-btn ${statusClass}`}
                           onClick={() => handleSelectOption(opcao.id)}
-                          disabled={isCurrentVerifiedCorrect}
+                          disabled={isCurrentResolved}
                         >
                           <span className="option-letter">{letter}</span>
                           <span className="option-text">{opcao.texto}</span>
@@ -368,12 +384,19 @@ export default function QuizModal({
                       {currentVerification.isCorrect ? (
                         <div>
                           <p>🎉 <strong>Muito bem!</strong> Resposta correta!</p>
-                          <p>Domínio estimado: {currentVerification.masteryScore}% · próxima revisão em {currentVerification.reviewDays} {currentVerification.reviewDays === 1 ? 'dia' : 'dias'}.</p>
+                          <p>Você acertou na tentativa {currentVerification.tentativaQuestao} de 3. Domínio estimado: {currentVerification.masteryScore}%.</p>
+                          {currentVerification.explicacao && <p>{currentVerification.explicacao}</p>}
+                        </div>
+                      ) : currentVerification.resolvida ? (
+                        <div>
+                          <p>📘 <strong>As três tentativas foram usadas.</strong> Veja a resposta correta destacada.</p>
+                          <p>{currentVerification.explicacao}</p>
+                          <p>Domínio atualizado: {currentVerification.masteryScore}%. Vamos reforçar esta habilidade.</p>
                         </div>
                       ) : (
                         <div>
-                          <p>❌ <strong>Ops! Resposta incorreta.</strong> Escolha outra opção e tente novamente!</p>
-                          <p>Domínio atualizado: {currentVerification.masteryScore}%. Vamos reforçar esta habilidade.</p>
+                          <p>❌ <strong>Resposta incorreta.</strong> Tentativa {currentVerification.tentativaQuestao} de 3. Tente novamente.</p>
+                          <p>{currentVerification.dica}</p>
                         </div>
                       )}
                     </div>
@@ -411,7 +434,7 @@ export default function QuizModal({
               )}
 
               {/* Action Buttons: Verify vs Next vs Finish */}
-              {!isCurrentVerifiedCorrect && perguntas.length > 0 ? (
+              {!isCurrentResolved && perguntas.length > 0 ? (
                 <button
                   type="button"
                   className="btn primary small btn-verify"
