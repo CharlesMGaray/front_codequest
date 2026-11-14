@@ -207,12 +207,12 @@ function AuthLayout({ children }) {
   )
 }
 
-function PasswordField({ value, onChange, placeholder, autoComplete, hint }) {
+function PasswordField({ value, onChange, placeholder, autoComplete, hint, label = 'Senha' }) {
   const [visible, setVisible] = useState(false)
 
   return (
     <label className="field">
-      <span className="field-label">Senha</span>
+      <span className="field-label">{label}</span>
       <span className="field-control has-action">
         <input
           type={visible ? 'text' : 'password'}
@@ -274,6 +274,10 @@ function useAuthSubmit(path, form, onSignedIn, fallbackMessage) {
 
 function LoginPage({ onGo, onSignedIn }) {
   const [form, setForm] = useState({ email: '', senha: '' })
+  const [recoveringPassword, setRecoveringPassword] = useState(false)
+  const [recoveryEmail, setRecoveryEmail] = useState('')
+  const [recoveryFeedback, setRecoveryFeedback] = useState(null)
+  const [recoveryLoading, setRecoveryLoading] = useState(false)
   const { submit, status, loading } = useAuthSubmit(
     '/api/auth/login',
     form,
@@ -281,61 +285,173 @@ function LoginPage({ onGo, onSignedIn }) {
     'Não foi possível fazer login.',
   )
 
+  const handlePasswordRecovery = async (event) => {
+    event.preventDefault()
+    setRecoveryLoading(true)
+    setRecoveryFeedback(null)
+
+    try {
+      const response = await request('/api/auth/solicitar-recuperacao', {
+        method: 'POST',
+        body: JSON.stringify({ email: recoveryEmail.trim() }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Não foi possível solicitar a recuperação.')
+      }
+
+      setRecoveryFeedback({
+        type: 'success',
+        message: 'Se houver uma conta com esse e-mail, você receberá um link para redefinir sua senha.',
+      })
+    } catch (error) {
+      setRecoveryFeedback({
+        type: 'error',
+        message: error.message === 'Failed to fetch'
+          ? 'Servidor indisponível. Tente novamente mais tarde.'
+          : 'Não foi possível solicitar a recuperação. Tente novamente mais tarde.',
+      })
+    } finally {
+      setRecoveryLoading(false)
+    }
+  }
+
   return (
     <AuthLayout>
       <BrandMark />
-      <header className="auth-head">
-        <h1>Bem-vindo de volta</h1>
-        <p>Acesse suas trilhas, veja seu ranking e continue sua evolução.</p>
-      </header>
+      {recoveringPassword ? (
+        <>
+          <header className="auth-head">
+            <h1>Recuperar senha</h1>
+            <p>Informe seu e-mail e enviaremos um link para redefinir sua senha.</p>
+          </header>
 
-      <form className="auth-form" onSubmit={submit}>
-        <label className="field">
-          <span className="field-label">Email</span>
-          <span className="field-control">
-            <input
-              type="email"
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
-              placeholder="voce@exemplo.com"
-              autoComplete="email"
-              required
+          <form className="auth-form" onSubmit={handlePasswordRecovery}>
+            <label className="field">
+              <span className="field-label">Email</span>
+              <span className="field-control">
+                <input
+                  type="email"
+                  value={recoveryEmail}
+                  onChange={(event) => setRecoveryEmail(event.target.value)}
+                  placeholder="voce@exemplo.com"
+                  autoComplete="email"
+                  required
+                />
+              </span>
+            </label>
+
+            {recoveryFeedback && (
+              <p
+                className={recoveryFeedback.type === 'success' ? 'auth-success' : 'auth-alert'}
+                role={recoveryFeedback.type === 'error' ? 'alert' : 'status'}
+              >
+                {recoveryFeedback.message}
+              </p>
+            )}
+
+            <button className="auth-submit" type="submit" disabled={recoveryLoading}>
+              {recoveryLoading ? 'Enviando...' : 'Enviar link de recuperação'}
+            </button>
+          </form>
+
+          <p className="auth-switch">
+            Lembrou sua senha?
+            <button
+              type="button"
+              className="auth-link"
+              onClick={() => {
+                setRecoveryFeedback(null)
+                setRecoveringPassword(false)
+              }}
+            >
+              Voltar ao login
+            </button>
+          </p>
+        </>
+      ) : (
+        <>
+          <header className="auth-head">
+            <h1>Bem-vindo de volta</h1>
+            <p>Acesse suas trilhas, veja seu ranking e continue sua evolução.</p>
+          </header>
+
+          <form className="auth-form" onSubmit={submit}>
+            <label className="field">
+              <span className="field-label">Email</span>
+              <span className="field-control">
+                <input
+                  type="email"
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  placeholder="voce@exemplo.com"
+                  autoComplete="email"
+                  required
+                />
+              </span>
+            </label>
+
+            <PasswordField
+              value={form.senha}
+              onChange={(e) => setForm({ ...form, senha: e.target.value })}
+              placeholder="Sua senha"
+              autoComplete="current-password"
             />
-          </span>
-        </label>
 
-        <PasswordField
-          value={form.senha}
-          onChange={(e) => setForm({ ...form, senha: e.target.value })}
-          placeholder="Sua senha"
-          autoComplete="current-password"
-        />
+            <div className="auth-forgot-row">
+              <button
+                type="button"
+                className="auth-link"
+                onClick={() => {
+                  setRecoveryEmail(form.email)
+                  setRecoveryFeedback(null)
+                  setRecoveringPassword(true)
+                }}
+              >
+                Esqueci minha senha
+              </button>
+            </div>
 
-        {status ? <p className="auth-alert" role="alert">{status}</p> : null}
+            {status ? <p className="auth-alert" role="alert">{status}</p> : null}
 
-        <button className="auth-submit" type="submit" disabled={loading}>
-          {loading ? 'Entrando...' : 'Entrar'}
-        </button>
-      </form>
+            <button className="auth-submit" type="submit" disabled={loading}>
+              {loading ? 'Entrando...' : 'Entrar'}
+            </button>
+          </form>
 
-      <p className="auth-switch">
-        Não tem conta?
-        <button type="button" className="auth-link" onClick={() => onGo('register')}>
-          Criar conta
-        </button>
-      </p>
+          <p className="auth-switch">
+            Não tem conta?
+            <button type="button" className="auth-link" onClick={() => onGo('register')}>
+              Criar conta
+            </button>
+          </p>
+        </>
+      )}
     </AuthLayout>
   )
 }
 
 function RegisterPage({ onGo, onSignedIn }) {
   const [form, setForm] = useState(defaultRegisterForm)
+  const [senhaConfirmacao, setSenhaConfirmacao] = useState('')
+  const [senhaConfirmacaoError, setSenhaConfirmacaoError] = useState('')
   const { submit, status, loading } = useAuthSubmit(
     '/api/auth/registrar',
     form,
     onSignedIn,
     'Não foi possível criar a conta.',
   )
+
+  const handleRegisterSubmit = (event) => {
+    if (form.senha !== senhaConfirmacao) {
+      event.preventDefault()
+      setSenhaConfirmacaoError('As senhas não correspondem.')
+      return
+    }
+
+    setSenhaConfirmacaoError('')
+    submit(event)
+  }
 
   return (
     <AuthLayout>
@@ -345,7 +461,7 @@ function RegisterPage({ onGo, onSignedIn }) {
         <p>Crie sua conta e dê o primeiro passo na trilha inicial.</p>
       </header>
 
-      <form className="auth-form" onSubmit={submit}>
+      <form className="auth-form" onSubmit={handleRegisterSubmit}>
         <label className="field">
           <span className="field-label">Nome</span>
           <span className="field-control">
@@ -377,11 +493,29 @@ function RegisterPage({ onGo, onSignedIn }) {
 
         <PasswordField
           value={form.senha}
-          onChange={(e) => setForm({ ...form, senha: e.target.value })}
+          onChange={(e) => {
+            setForm({ ...form, senha: e.target.value })
+            setSenhaConfirmacaoError('')
+          }}
           placeholder="Crie uma senha"
           autoComplete="new-password"
           hint="Mínimo de 6 caracteres."
         />
+
+        <PasswordField
+          value={senhaConfirmacao}
+          onChange={(e) => {
+            setSenhaConfirmacao(e.target.value)
+            setSenhaConfirmacaoError('')
+          }}
+          placeholder="Repita sua senha"
+          autoComplete="new-password"
+          label="Confirmar senha"
+        />
+
+        {senhaConfirmacaoError
+          ? <p className="auth-alert" role="alert">{senhaConfirmacaoError}</p>
+          : null}
 
         {status ? <p className="auth-alert" role="alert">{status}</p> : null}
 
