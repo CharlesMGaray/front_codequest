@@ -60,9 +60,19 @@ export default function QuizModal({
     return Math.round(baseXp * getAttemptXpMultiplier(attemptNumber))
   }
 
-  const currentXpReward = currentVerification
-    ? getXpRewardForAttempt(currentVerification.tentativaQuestao, currentVerification.isCorrect)
-    : 0
+  const xpEarned = perguntas.reduce((total, question) => {
+    const verification = verifiedMap[question.id]
+    return total + (verification
+      ? getXpRewardForAttempt(verification.tentativaQuestao, verification.isCorrect)
+      : 0)
+  }, 0)
+  const maxXp = (lesson?.xpBonus || 50) * perguntas.length
+  const masteryPercent = maxXp > 0 ? Math.round((xpEarned / maxXp) * 100) : 0
+  const masteryTier = masteryPercent >= 80
+    ? 'Difícil'
+    : masteryPercent >= 60
+    ? 'Médio'
+    : 'Fácil'
 
   const handleSelectOption = (optionId) => {
     if (!currentQ || isCurrentResolved) return
@@ -153,11 +163,33 @@ export default function QuizModal({
             <div className="celebration-badge">⭐</div>
             <h2>Nível Concluído!</h2>
             <p className="celebration-sub">
-              Você completou a lição <strong>{lesson.titulo}</strong> e acertou todas as perguntas!
+              Você completou a lição <strong>{lesson.titulo}</strong>.
             </p>
             <div className="celebration-xp">
-              <span>+{lesson.xpBonus || 50} XP</span>
+              <span>+{xpEarned} XP</span>
             </div>
+            <p className="celebration-mastery">
+              Domínio calculado pelo XP acumulado: <strong>{masteryPercent}%</strong>
+            </p>
+            <div className="mastery-levels" aria-label={`Nível de domínio: ${masteryTier}`}>
+              {[
+                { label: 'Fácil', range: '0–59%' },
+                { label: 'Médio', range: '60–79%' },
+                { label: 'Difícil', range: '80–100%' },
+              ].map((level) => (
+                <div
+                  key={level.label}
+                  className={`mastery-level${masteryTier === level.label ? ' active' : ''}`}
+                  aria-current={masteryTier === level.label ? 'step' : undefined}
+                >
+                  <strong>{level.label}</strong>
+                  <span>{level.range}</span>
+                </div>
+              ))}
+            </div>
+            <p className="mastery-current-level">
+              Seu nível nesta lição: <strong>{masteryTier}</strong>
+            </p>
             <button
               type="button"
               className="btn primary celebration-btn"
@@ -385,27 +417,17 @@ export default function QuizModal({
                       {currentVerification.isCorrect ? (
                         <div>
                           <p>🎉 <strong>Muito bem!</strong> Resposta correta!</p>
-                          <p>
-                            Você acertou na tentativa {currentVerification.tentativaQuestao} de 3.
-                            {' '}XP ganho: +{currentXpReward} XP
-                            {' '}({currentVerification.tentativaQuestao === 1
-                              ? '100% do XP total'
-                              : currentVerification.tentativaQuestao === 2
-                              ? '60% do XP total'
-                              : '30% do XP total'}).
-                          </p>
+                          <p>Você acertou na tentativa {currentVerification.tentativaQuestao} de 3.</p>
                           {currentVerification.explicacao && <p>{currentVerification.explicacao}</p>}
                         </div>
                       ) : currentVerification.resolvida ? (
                         <div>
                           <p>📘 <strong>As três tentativas foram usadas.</strong> Veja a resposta correta destacada.</p>
                           <p>{currentVerification.explicacao}</p>
-                          <p>Sem XP por esta tentativa incorreta.</p>
                         </div>
                       ) : (
                         <div>
                           <p>❌ <strong>Resposta incorreta.</strong> Tentativa {currentVerification.tentativaQuestao} de 3. Tente novamente.</p>
-                          <p>Sem XP nesta tentativa. A próxima resposta correta vale o percentual correspondente.</p>
                           {currentVerification.dica && <p>{currentVerification.dica}</p>}
                         </div>
                       )}
