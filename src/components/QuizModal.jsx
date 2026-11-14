@@ -46,6 +46,24 @@ export default function QuizModal({
   const currentVerification = currentQ ? verifiedMap[currentQ.id] : null
   const isCurrentResolved = isCompleted || Boolean(currentVerification?.resolvida)
 
+  const getAttemptXpMultiplier = (attemptNumber) => {
+    if (!attemptNumber) return 0
+    if (attemptNumber === 1) return 1
+    if (attemptNumber === 2) return 0.6
+    if (attemptNumber === 3) return 0.3
+    return 0
+  }
+
+  const getXpRewardForAttempt = (attemptNumber, isCorrect) => {
+    if (!isCorrect) return 0
+    const baseXp = lesson?.xpBonus || 50
+    return Math.round(baseXp * getAttemptXpMultiplier(attemptNumber))
+  }
+
+  const currentXpReward = currentVerification
+    ? getXpRewardForAttempt(currentVerification.tentativaQuestao, currentVerification.isCorrect)
+    : 0
+
   const handleSelectOption = (optionId) => {
     if (!currentQ || isCurrentResolved) return
 
@@ -214,27 +232,10 @@ export default function QuizModal({
               </div>
 
               <div className="adaptive-quiz-guidance">
-                <strong>
-                  {skillProgress
-                    ? `Domínio atual: ${skillProgress.dominio}%`
-                    : 'Vamos avaliar seu domínio'}
-                </strong>
+                <strong>Desafios e XP</strong>
                 <p>
-                  {!skillProgress || skillProgress.dominio < 60
-                    ? 'Começaremos pelas questões mais acessíveis e recomendaremos revisão se necessário.'
-                    : skillProgress.dominio >= 80
-                    ? 'Seu domínio está consistente; o quiz começará pelos desafios mais difíceis.'
-                    : 'As questões seguem uma progressão gradual para consolidar esta habilidade.'}
+                  Responda cada questão para avançar na trilha e acumular XP conforme a tentativa correta.
                 </p>
-                {skillProgress && (
-                  <div className="adaptive-skill-bar" role="progressbar"
-                    aria-label="Domínio da habilidade"
-                    aria-valuenow={skillProgress.dominio}
-                    aria-valuemin="0"
-                    aria-valuemax="100">
-                    <span style={{ width: `${skillProgress.dominio}%` }} />
-                  </div>
-                )}
               </div>
 
               {errorMsg && <p className="message error">{errorMsg}</p>}
@@ -384,19 +385,28 @@ export default function QuizModal({
                       {currentVerification.isCorrect ? (
                         <div>
                           <p>🎉 <strong>Muito bem!</strong> Resposta correta!</p>
-                          <p>Você acertou na tentativa {currentVerification.tentativaQuestao} de 3. Domínio estimado: {currentVerification.masteryScore}%.</p>
+                          <p>
+                            Você acertou na tentativa {currentVerification.tentativaQuestao} de 3.
+                            {' '}XP ganho: +{currentXpReward} XP
+                            {' '}({currentVerification.tentativaQuestao === 1
+                              ? '100% do XP total'
+                              : currentVerification.tentativaQuestao === 2
+                              ? '60% do XP total'
+                              : '30% do XP total'}).
+                          </p>
                           {currentVerification.explicacao && <p>{currentVerification.explicacao}</p>}
                         </div>
                       ) : currentVerification.resolvida ? (
                         <div>
                           <p>📘 <strong>As três tentativas foram usadas.</strong> Veja a resposta correta destacada.</p>
                           <p>{currentVerification.explicacao}</p>
-                          <p>Domínio atualizado: {currentVerification.masteryScore}%. Vamos reforçar esta habilidade.</p>
+                          <p>Sem XP por esta tentativa incorreta.</p>
                         </div>
                       ) : (
                         <div>
                           <p>❌ <strong>Resposta incorreta.</strong> Tentativa {currentVerification.tentativaQuestao} de 3. Tente novamente.</p>
-                          <p>{currentVerification.dica}</p>
+                          <p>Sem XP nesta tentativa. A próxima resposta correta vale o percentual correspondente.</p>
+                          {currentVerification.dica && <p>{currentVerification.dica}</p>}
                         </div>
                       )}
                     </div>
