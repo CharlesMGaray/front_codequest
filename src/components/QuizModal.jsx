@@ -1,25 +1,48 @@
 import { useState } from 'react'
 import DukeMascot from './DukeMascot'
 
+const QUESTIONS_PER_LESSON = 5
+
+function difficultyOrderForMastery(mastery) {
+  if (mastery >= 80) return [3, 2, 1]
+  if (mastery >= 60) return [2, 1, 3]
+  return [1, 2, 3]
+}
+
+function selectLessonQuestions(questions, mastery) {
+  const difficultyOrder = difficultyOrderForMastery(mastery)
+  const priority = new Map(difficultyOrder.map((difficulty, index) => [difficulty, index]))
+  const compareDifficulty = (a, b) =>
+    (priority.get(a.dificuldade) ?? difficultyOrder.length)
+      - (priority.get(b.dificuldade) ?? difficultyOrder.length)
+
+  const ordered = [...questions].sort(compareDifficulty)
+  const attempted = ordered.filter((question) => question.tentativasUsadas > 0)
+  const unattempted = ordered.filter((question) => question.tentativasUsadas === 0)
+  return [...attempted, ...unattempted]
+    .slice(0, QUESTIONS_PER_LESSON)
+    .sort(compareDifficulty)
+}
+
+function difficultyLabel(difficulty) {
+  return {
+    1: 'Fácil',
+    2: 'Médio',
+    3: 'Difícil',
+  }[difficulty] || 'Médio'
+}
+
 export default function QuizModal({
   lesson,
   isCompleted,
-  skillProgress,
+  trailMastery,
   onClose,
   onAnswer,
   onComplete,
 }) {
-  const [perguntas] = useState(() => {
-    const questions = [...(lesson?.perguntas || [])]
-    const mastery = skillProgress?.dominio ?? 50
-    if (mastery < 60) {
-      return questions.sort((a, b) => (a.dificuldade || 1) - (b.dificuldade || 1))
-    }
-    if (mastery >= 80) {
-      return questions.sort((a, b) => (b.dificuldade || 1) - (a.dificuldade || 1))
-    }
-    return questions
-  })
+  const [perguntas] = useState(() =>
+    selectLessonQuestions(lesson?.perguntas || [], trailMastery ?? 50),
+  )
   const [stage, setStage] = useState('intro') // 'intro' | 'quiz' | 'celebration'
   const [currentIdx, setCurrentIdx] = useState(0)
   const [answers, setAnswers] = useState(() =>
@@ -57,16 +80,16 @@ export default function QuizModal({
   const getXpRewardForAttempt = (attemptNumber, isCorrect) => {
     if (!isCorrect) return 0
     const baseXp = lesson?.xpBonus || 50
-    return Math.round(baseXp * getAttemptXpMultiplier(attemptNumber))
+    return baseXp * getAttemptXpMultiplier(attemptNumber) / QUESTIONS_PER_LESSON
   }
 
-  const xpEarned = perguntas.reduce((total, question) => {
+  const xpEarned = Math.round(perguntas.reduce((total, question) => {
     const verification = verifiedMap[question.id]
     return total + (verification
       ? getXpRewardForAttempt(verification.tentativaQuestao, verification.isCorrect)
       : 0)
-  }, 0)
-  const maxXp = (lesson?.xpBonus || 50) * perguntas.length
+  }, 0))
+  const maxXp = lesson?.xpBonus || 50
   const masteryPercent = maxXp > 0 ? Math.round((xpEarned / maxXp) * 100) : 0
   const masteryTier = masteryPercent >= 80
     ? 'Difícil'
@@ -322,7 +345,7 @@ export default function QuizModal({
                   </button>
                   <span className="quiz-badge">
                     Questão {currentIdx + 1}/{perguntas.length}
-                    {currentQ?.dificuldade ? ` • Desafio ${currentQ.dificuldade}` : ''}
+                    {currentQ?.dificuldade ? ` • ${difficultyLabel(currentQ.dificuldade)}` : ''}
                   </span>
                 </div>
                 <h3>{lesson.titulo}</h3>

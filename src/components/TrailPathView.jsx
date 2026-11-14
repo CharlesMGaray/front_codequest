@@ -18,6 +18,13 @@ export default function TrailPathView({
     return [...(trail?.licoes || [])].sort((a, b) => a.ordem - b.ordem)
   }, [trail])
 
+  const trailMastery = useMemo(() => {
+    const trailSkills = progresso.filter((skill) => skill.trilhaId === trail?.id)
+    if (trailSkills.length === 0) return 50
+    const totalMastery = trailSkills.reduce((sum, skill) => sum + skill.dominio, 0)
+    return Math.round(totalMastery / trailSkills.length)
+  }, [progresso, trail?.id])
+
   useEffect(() => {
     if (!initialLessonId) return
     const lesson = licoes.find((item) => item.id === initialLessonId)
@@ -220,7 +227,7 @@ export default function TrailPathView({
         <QuizModal
           lesson={selectedLesson}
           isCompleted={selectedLesson.concluida}
-          skillProgress={progresso.find((skill) => skill.skillId === selectedLesson.id)}
+          trailMastery={trailMastery}
           onClose={() => setSelectedLesson(null)}
           onAnswer={onAnswerQuestion}
           onComplete={handleCompleteAndRefresh}
