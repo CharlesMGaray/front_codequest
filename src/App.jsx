@@ -193,12 +193,7 @@ function AuthLayout({ children }) {
   return (
     <main className="auth">
       <aside className="auth-art" aria-hidden="true">
-        <img src={logoImg} alt="" className="auth-art-image" />
-        <ul className="auth-art-points">
-          <li><span><strong>Jogue</strong> desafios e missões</span></li>
-          <li><span><strong>Suba de nível</strong> com XP a cada lição</span></li>
-          <li><span><strong>Dispute</strong> o ranking com a turma</span></li>
-        </ul>
+        <BrandMark />
       </aside>
       <section className="auth-panel">
         <div className="auth-card">{children}</div>
