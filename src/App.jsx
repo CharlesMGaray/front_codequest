@@ -286,7 +286,7 @@ function LoginPage({ onGo, onSignedIn }) {
     setRecoveryFeedback(null)
 
     try {
-      const response = await request('/api/auth/solicitar-recuperacao', {
+      const response = await request('/api/auth/recuperar-senha', {
         method: 'POST',
         body: JSON.stringify({ email: recoveryEmail.trim() }),
       })
