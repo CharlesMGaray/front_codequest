@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import DukeMascot from './DukeMascot'
 import QuizModal from './QuizModal'
+import { activeLessonIndex, lessonStatus } from '../utils/statusLicoes'
 
 export default function TrailPathView({
   trail,
@@ -38,10 +39,7 @@ export default function TrailPathView({
   }, [licoes, selectedLesson])
 
   // Determine active level index: first non-completed lesson
-  const activeIndex = useMemo(() => {
-    const idx = licoes.findIndex((l) => !l.concluida)
-    return idx === -1 ? licoes.length : idx
-  }, [licoes])
+  const activeIndex = useMemo(() => activeLessonIndex(licoes), [licoes])
 
   // Horizontal zig-zag offsets for nodes (alternating pattern)
   const nodeOffsets = useMemo(() => {
@@ -119,10 +117,10 @@ export default function TrailPathView({
           ) : (
             <div className="trail-nodes-flow">
               {licoes.map((lesson, idx) => {
-                const isCompleted = lesson.concluida
-                const isActive = idx === activeIndex
-                const isLocked = !isCompleted && !isActive
-                const status = isCompleted ? 'completed' : isActive ? 'active' : 'locked'
+                const status = lessonStatus(lesson, idx, activeIndex)
+                const isCompleted = status === 'completed'
+                const isActive = status === 'active'
+                const isLocked = status === 'locked'
                 const xOffset = nodeOffsets[idx]
                 const nextOffset = nodeOffsets[idx + 1]
                 const hasNext = idx < licoes.length - 1

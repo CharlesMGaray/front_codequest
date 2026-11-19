@@ -1,28 +1,6 @@
 import { useState } from 'react'
 import DukeMascot from './DukeMascot'
-
-const QUESTIONS_PER_LESSON = 5
-
-function difficultyOrderForMastery(mastery) {
-  if (mastery >= 80) return [3, 2, 1]
-  if (mastery >= 60) return [2, 1, 3]
-  return [1, 2, 3]
-}
-
-function selectLessonQuestions(questions, mastery) {
-  const difficultyOrder = difficultyOrderForMastery(mastery)
-  const priority = new Map(difficultyOrder.map((difficulty, index) => [difficulty, index]))
-  const compareDifficulty = (a, b) =>
-    (priority.get(a.dificuldade) ?? difficultyOrder.length)
-      - (priority.get(b.dificuldade) ?? difficultyOrder.length)
-
-  const ordered = [...questions].sort(compareDifficulty)
-  const attempted = ordered.filter((question) => question.tentativasUsadas > 0)
-  const unattempted = ordered.filter((question) => question.tentativasUsadas === 0)
-  return [...attempted, ...unattempted]
-    .slice(0, QUESTIONS_PER_LESSON)
-    .sort(compareDifficulty)
-}
+import { QUESTIONS_PER_LESSON, selectLessonQuestions } from '../utils/selecaoQuestoes'
 
 function difficultyLabel(difficulty) {
   return {
